@@ -4,6 +4,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   ssr: false,
   modules: ['@nuxtjs/tailwindcss', '@vite-pwa/nuxt'],
+  app: {
+    baseURL: '/calorie_input/', 
+    buildAssetsDir: '/static/' // Windows環境のアンダースコア問題を回避
+  },
+  nitro: {
+    preset: 'github-pages'
+  },
   pwa: {
     registerType: 'autoUpdate',
     manifest: {
