@@ -5,7 +5,8 @@ export default defineNuxtConfig({
   ssr: false,
   modules: ['@nuxtjs/tailwindcss', '@vite-pwa/nuxt'],
   app: {
-    baseURL: '/calorie_input/', 
+    // ここの名前を実際のGitHubリポジトリ名と完全に同じにします（例: '/calorie-input/'）
+    baseURL: '/実際のリポジトリ名/', 
     buildAssetsDir: '/static/' // Windows環境のアンダースコア問題を回避
   },
   nitro: {
