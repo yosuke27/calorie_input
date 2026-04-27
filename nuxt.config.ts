@@ -23,6 +23,8 @@ export default defineNuxtConfig({
       display: 'standalone',
       orientation: 'portrait',
       lang: 'ja',
+      start_url: '/calorie_input/',
+      id: '/calorie_input/',
       icons: [
         {
           src: 'pwa-192x192.png',
@@ -43,7 +45,7 @@ export default defineNuxtConfig({
       ]
     },
     workbox: {
-      navigateFallback: '/',
+      navigateFallback: '/calorie_input/',
       // Windows環境のパス問題を回避するため、node_modules等をキャッシュ対象外にする
       globPatterns: ['**/*.{js,css,html,png,svg,ico}']
     },
