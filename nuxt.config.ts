@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/tailwindcss', '@vite-pwa/nuxt'],
   app: {
     // ここの名前を実際のGitHubリポジトリ名と完全に同じにします（例: '/calorie-input/'）
-    baseURL: '/実際のリポジトリ名/', 
+    baseURL: '/calorie_input/', 
     buildAssetsDir: '/static/' // Windows環境のアンダースコア問題を回避
   },
   nitro: {
@@ -19,9 +19,13 @@ export default defineNuxtConfig({
       short_name: '食事カメラ',
       description: 'カメラで食事を記録するアプリ',
       theme_color: '#ffffff',
+      background_color: '#f9fafb',
+      display: 'standalone',
+      orientation: 'portrait',
+      lang: 'ja',
       icons: [
         {
-          src: 'pwa-192x192.png', // 後ほど public フォルダに配置が必要
+          src: 'pwa-192x192.png',
           sizes: '192x192',
           type: 'image/png'
         },
@@ -29,6 +33,12 @@ export default defineNuxtConfig({
           src: 'pwa-512x512.png',
           sizes: '512x512',
           type: 'image/png'
+        },
+        {
+          src: 'pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable'
         }
       ]
     },
