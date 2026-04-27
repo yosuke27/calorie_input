@@ -63,6 +63,12 @@ const close = () => {
   showModal.value = false;
 };
 
+// 係数の増減処理（計算誤差を防ぐため10倍して四捨五入し、0未満にならないようにする）
+const adjustScale = (item: any, amount: number) => {
+  const newScale = Math.round((item.scale + amount) * 10) / 10;
+  item.scale = Math.max(0, newScale);
+};
+
 // 親コンポーネントからアクセスできるように公開
 defineExpose({
   open,
@@ -81,15 +87,21 @@ defineExpose({
           <!-- 料理名と分量係数 -->
           <div class="flex justify-between items-center mb-1">
             <div class="font-bold text-lg text-gray-800">{{ item.dish_name }}</div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600">×</span>
+            <div class="flex items-center gap-1">
+              <span class="text-sm text-gray-600 mr-1">×</span>
+              <button @click="adjustScale(item, -0.1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 text-gray-700 rounded-md font-bold text-lg hover:bg-gray-300 active:bg-gray-400">
+                -
+              </button>
               <input 
                 type="number" 
                 step="0.1" 
                 min="0" 
                 v-model.number="item.scale" 
-                class="w-16 border border-gray-300 rounded-md px-2 py-1 text-right focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                class="w-16 border border-gray-300 rounded-md px-1 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500" 
               />
+              <button @click="adjustScale(item, 0.1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 text-gray-700 rounded-md font-bold text-lg hover:bg-gray-300 active:bg-gray-400">
+                +
+              </button>
             </div>
           </div>
           
