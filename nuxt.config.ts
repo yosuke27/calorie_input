@@ -7,7 +7,18 @@ export default defineNuxtConfig({
   app: {
     // ここの名前を実際のGitHubリポジトリ名と完全に同じにします（例: '/calorie-input/'）
     baseURL: '/calorie_input/', 
-    buildAssetsDir: '/static/' // Windows環境のアンダースコア問題を回避
+    buildAssetsDir: '/static/', // Windows環境のアンダースコア問題を回避
+    head: {
+      title: '食事記録カメラ',
+      meta: [
+        { name: 'theme-color', content: '#ffffff' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' }
+      ],
+      link: [
+        { rel: 'apple-touch-icon', href: '/calorie_input/pwa-192x192.png' }
+      ]
+    }
   },
   nitro: {
     preset: 'github-pages'
@@ -23,6 +34,7 @@ export default defineNuxtConfig({
       display: 'standalone',
       orientation: 'portrait',
       lang: 'ja',
+      scope: '/calorie_input/',
       start_url: '/calorie_input/',
       id: '/calorie_input/',
       icons: [
