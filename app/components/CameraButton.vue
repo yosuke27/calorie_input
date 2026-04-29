@@ -135,12 +135,25 @@ const onClick = () => {
 </script>
 
 <template>
+  <!-- 設定未完了の場合 -->
   <label v-if="!isSettingsValid" class="block w-full max-w-xs bg-orange-500 text-white text-center py-4 rounded-xl shadow-lg cursor-pointer active:bg-orange-600 transition-colors" @click.prevent="onClick">
     <span>設定が必要です</span>
   </label>
-  <label v-else class="block w-full max-w-xs bg-blue-600 text-white text-center py-4 rounded-xl shadow-lg cursor-pointer active:bg-blue-700 transition-colors">
-    <span v-if="!isProcessing">写真を撮る</span>
-    <span v-else>処理中...</span>
-    <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFileChange" :disabled="isProcessing" />
-  </label>
+
+  <!-- 設定完了の場合 -->
+  <div v-else class="w-full max-w-xs space-y-3">
+    <!-- カメラ撮影 -->
+    <label class="block bg-blue-600 text-white text-center py-4 rounded-xl shadow-lg cursor-pointer active:bg-blue-700 transition-colors">
+      <span v-if="!isProcessing">写真を撮る</span>
+      <span v-else>処理中...</span>
+      <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFileChange" :disabled="isProcessing" />
+    </label>
+
+    <!-- 写真フォルダから選択 -->
+    <label class="block bg-gray-500 text-white text-center py-3 rounded-xl shadow-lg cursor-pointer active:bg-gray-600 transition-colors">
+      <span v-if="!isProcessing">写真フォルダから選択</span>
+      <span v-else>処理中...</span>
+      <input type="file" accept="image/*" class="hidden" @change="onFileChange" :disabled="isProcessing" />
+    </label>
+  </div>
 </template>

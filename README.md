@@ -48,3 +48,27 @@ clasp push
 ```bash
 clasp pull
 ```
+
+### 4. デプロイ
+
+**バージョンを作成してデプロイ**
+```bash
+clasp deploy -d "説明"
+```
+
+**デプロイ一覧を表示**
+```bash
+clasp deployments
+```
+
+**特定のバージョンにデプロイ**
+```bash
+clasp deploy -i <deploymentId> -d "説明"
+```
+
+**Web アプリとして公開**
+```bash
+clasp deploy --webapp
+```
+
+> **注意**: デプロイ後は Google Apps Script エディタの「デプロイメントからテスト」を選択して、URL を取得してください。その URL を Nuxt アプリの「データ登録APIエンドポイント」設定に入力してください。

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import SettingsModal from '~/components/SettingsModal.vue';
 import ResultModal from '~/components/ResultModal.vue';
 import CameraButton from '~/components/CameraButton.vue';
+import ManualInput from '~/components/ManualInput.vue';
 
 // 状態管理
 const imagePreview = ref<string | null>(null);
@@ -117,6 +118,19 @@ const handleProcessError = (message: string) => {
       @process-end="handleProcessEnd"
       @process-error="handleProcessError"
     />
+
+    <!-- 手動入力コンポーネント -->
+    <div class="mt-4">
+      <ManualInput 
+        :api-key="apiKey"
+        :is-settings-valid="isSettingsValid"
+        @require-settings="handleRequireSettings"
+        @process-start="handleProcessStart"
+        @process-update="handleProcessUpdate"
+        @process-end="handleProcessEnd"
+        @process-error="handleProcessError"
+      />
+    </div>
 
     <!-- 外部リンクボタン群 -->
     <div v-if="databaseUrl || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
