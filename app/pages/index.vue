@@ -120,8 +120,7 @@ const handleProcessError = (message: string) => {
     />
 
     <!-- 手動入力コンポーネント -->
-    <div class="mt-4">
-      <ManualInput 
+    <ManualInput 
         :api-key="apiKey"
         :is-settings-valid="isSettingsValid"
         @require-settings="handleRequireSettings"
@@ -129,8 +128,7 @@ const handleProcessError = (message: string) => {
         @process-update="handleProcessUpdate"
         @process-end="handleProcessEnd"
         @process-error="handleProcessError"
-      />
-    </div>
+    />
 
     <!-- 外部リンクボタン群 -->
     <div v-if="databaseUrl || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
