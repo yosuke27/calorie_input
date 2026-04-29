@@ -112,7 +112,7 @@ const toggleInputForm = () => {
 </script>
 
 <template>
-  <div class="w-full max-w-xs">
+  <div class="w-full max-w-xs mt-4">
     <!-- 入力フォーム表示ボタン -->
     <button 
       v-if="!showInputForm"
