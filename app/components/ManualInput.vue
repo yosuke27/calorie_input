@@ -117,13 +117,13 @@ const toggleInputForm = () => {
     <button 
       v-if="!showInputForm"
       @click="toggleInputForm"
-      class="w-full bg-gray-400 text-white text-center py-3 rounded-xl shadow-lg hover:bg-gray-500 transition-colors"
+      class="w-full max-w-xs block bg-gray-400 text-white text-center py-4 rounded-xl shadow-lg hover:bg-gray-500 transition-colors"
     >
       手動で入力
     </button>
 
     <!-- 入力フォーム -->
-    <div v-if="showInputForm" class="bg-white rounded-xl shadow-lg p-4 space-y-3">
+    <div v-if="showInputForm" class="w-full max-w-xs bg-white rounded-xl shadow-lg p-4 space-y-3">
       <div class="flex justify-between items-center">
         <span class="font-bold text-gray-700">手動入力</span>
         <button @click="toggleInputForm" class="text-gray-500 hover:text-gray-700">&times;</button>
@@ -139,7 +139,7 @@ const toggleInputForm = () => {
       <button
         @click="analyzeManualInput"
         :disabled="isProcessing || !manualInput.trim()"
-        class="w-full bg-green-600 text-white py-3 rounded-lg font-bold shadow-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span v-if="!isProcessing">分析する</span>
         <span v-else>処理中...</span>
