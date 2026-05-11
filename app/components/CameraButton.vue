@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import imageCompression from 'browser-image-compression';
+import { getGeminiGenerateContentUrl } from '~/utils/constants';
 
 const props = defineProps<{
   apiKey: string | null;
@@ -50,7 +51,7 @@ const analyzeWithGemini = async (base64Image: string, apiKey: string): Promise<a
   }
 ]`;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`, {
+  const response = await fetch(getGeminiGenerateContentUrl(apiKey), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -136,23 +137,42 @@ const onClick = () => {
 
 <template>
   <!-- 設定未完了の場合 -->
-  <label v-if="!isSettingsValid" class="block w-full max-w-xs bg-orange-500 text-white text-center py-4 rounded-xl shadow-lg cursor-pointer active:bg-orange-600 transition-colors" @click.prevent="onClick">
+  <label v-if="!isSettingsValid" class="w-full flex justify-center items-center bg-orange-500 text-white font-bold h-16 rounded-xl shadow-lg cursor-pointer active:bg-orange-600 transition-colors" @click.prevent="onClick">
     <span>設定が必要です</span>
   </label>
 
   <!-- 設定完了の場合 -->
-  <div v-else class="w-full max-w-xs space-y-3">
+  <div v-else class="contents">
     <!-- カメラ撮影 -->
-    <label class="block bg-blue-600 text-white text-center py-4 rounded-xl shadow-lg cursor-pointer active:bg-blue-700 transition-colors">
-      <span v-if="!isProcessing">写真を撮る</span>
-      <span v-else>処理中...</span>
+    <label class="w-20 h-20 flex justify-center items-center bg-blue-600 text-white rounded-full shadow-lg cursor-pointer active:bg-blue-700 transition-colors shrink-0">
+      <div v-if="!isProcessing" class="flex flex-col items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </div>
+      <div v-else class="flex flex-col items-center">
+        <svg class="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
       <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFileChange" :disabled="isProcessing" />
     </label>
 
     <!-- 写真フォルダから選択 -->
-    <label class="block bg-gray-500 text-white text-center py-3 rounded-xl shadow-lg cursor-pointer active:bg-gray-600 transition-colors">
-      <span v-if="!isProcessing">写真フォルダから選択</span>
-      <span v-else>処理中...</span>
+    <label class="w-20 h-20 flex justify-center items-center bg-gray-500 text-white rounded-full shadow-lg cursor-pointer active:bg-gray-600 transition-colors shrink-0">
+      <div v-if="!isProcessing" class="flex flex-col items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+      </div>
+      <div v-else class="flex flex-col items-center">
+        <svg class="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
       <input type="file" accept="image/*" class="hidden" @change="onFileChange" :disabled="isProcessing" />
     </label>
   </div>

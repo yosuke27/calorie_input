@@ -17,6 +17,9 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'apple-touch-icon', href: '/calorie_input/pwa-192x192.png' }
+      ],
+      script: [
+        { src: 'https://accounts.google.com/gsi/client', async: true, defer: true }
       ]
     }
   },

@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
+declare const google: any;
+
+const emit = defineEmits<{
+  (e: 'submit-success'): void;
+}>();
+
 const showModal = ref(false);
 const nutritionResults = ref<any[]>([]);
 const isSubmitting = ref(false);
 const submitMessage = ref('');
 const registeredAt = ref('');
+const previewImageUrl = ref('');
+
+const totalCalories = computed(() => {
+  return nutritionResults.value.reduce((sum, item) => {
+    return sum + Math.round(item.calorie * (item.scale || 0));
+  }, 0);
+});
 
 const getCurrentDateTime = () => {
   const now = new Date();
@@ -18,51 +31,139 @@ const getCurrentDateTime = () => {
 };
 
 // 外部からモーダルを開くための関数
-const open = (results: any[]) => {
+const open = (results: any[], imageUrl: string = '') => {
   // 初期値として scale を 1.0 に設定してコピー
   nutritionResults.value = results.map(item => ({ ...item, scale: 1.0 }));
   submitMessage.value = '';
   registeredAt.value = getCurrentDateTime();
+  previewImageUrl.value = imageUrl;
   showModal.value = true;
+};
+
+// Spreadsheet URLからIDを抽出するユーティリティ
+const extractSpreadsheetId = (input: string) => {
+  if (!input) return '';
+  const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : input;
+};
+
+// LocalStorageを用いたトークン管理
+const getCachedToken = () => {
+  const data = localStorage.getItem('google_access_token_data');
+  if (data) {
+    try {
+      const parsed = JSON.parse(data);
+      if (Date.now() < parsed.expirationTime) {
+        return parsed.token;
+      }
+    } catch (e) {}
+  }
+  return null;
+};
+
+const saveTokenToCache = (token: string, expiresInSec: number) => {
+  // 余裕を持たせて5分前(300秒)には期限切れ扱いにする、デフォルトは50分
+  const expiryMs = (expiresInSec ? expiresInSec - 300 : 3000) * 1000;
+  localStorage.setItem('google_access_token_data', JSON.stringify({
+    token,
+    expirationTime: Date.now() + expiryMs
+  }));
 };
 
 const submitData = async () => {
   const savedSettings = localStorage.getItem('calorie-app-settings');
-  let endpoint = '';
+  let clientId = '';
+  let sheetIdRaw = '';
+
   if (savedSettings) {
     const settings = JSON.parse(savedSettings);
-    endpoint = settings.dataApiEndpoint || '';
+    clientId = settings.googleClientId || '';
+    sheetIdRaw = settings.spreadsheetId || '';
   }
 
-  if (!endpoint) {
-    submitMessage.value = '設定からデータ登録APIエンドポイントを入力してください。';
+  const sheetId = extractSpreadsheetId(sheetIdRaw);
+
+  if (!clientId || !sheetId) {
+    submitMessage.value = '設定からGoogle OAuthクライアントIDとスプレッドシートIDを入力してください。';
     return;
   }
 
   isSubmitting.value = true;
-  submitMessage.value = '送信中...';
+  submitMessage.value = '認証中...';
 
   try {
-    // GAS側で受け付ける形式に合わせて、係数(scale)を反映した数値を算出
-    const payload = nutritionResults.value.map(item => ({
-      registeredAt: registeredAt.value,
-      dish_name: item.dish_name,
-      comment: item.comment,
-      calorie: Math.round(item.calorie * (item.scale || 0)),
-      protein: Number((item.protein * (item.scale || 0)).toFixed(1)),
-      fat: Number((item.fat * (item.scale || 0)).toFixed(1)),
-      carbohydrate: Number((item.carbohydrate * (item.scale || 0)).toFixed(1)),
-      confidence: item.confidence || 0
-    }));
+    const cachedToken = getCachedToken();
+    if (cachedToken) {
+      await writeToSheet(cachedToken, sheetId);
+      return;
+    }
 
-    await fetch(endpoint, {
-      method: 'POST',
-      // GASへのCORSエラー（プリフライト OPTIONS）回避のため text/plain を使用
-      headers: { 'Content-Type': 'text/plain' }, 
-      body: JSON.stringify(payload)
+    if (typeof google === 'undefined') {
+      throw new Error('Google Identity Services が読み込まれていません。ページをリロードしてください。');
+    }
+
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: async (response: any) => {
+        if (response.error !== undefined) {
+          submitMessage.value = '認証に失敗しました: ' + response.error;
+          isSubmitting.value = false;
+          return;
+        }
+        
+        // LocalStorageに保存 (response.expires_in があればそれを利用)
+        saveTokenToCache(response.access_token, response.expires_in);
+
+        await writeToSheet(response.access_token, sheetId);
+      },
     });
 
+    // 初回のみ認証プロンプトを表示 (過去に許可済みなら画面は出ずに即座にトークンが返る)
+    tokenClient.requestAccessToken();
+
+  } catch (error: any) {
+    console.error(error);
+    submitMessage.value = 'エラー: ' + error.message;
+    isSubmitting.value = false;
+  }
+};
+
+const writeToSheet = async (accessToken: string, spreadsheetId: string) => {
+  submitMessage.value = '送信中...';
+  
+  try {
+    const rows = nutritionResults.value.map(item => [
+      registeredAt.value,
+      item.dish_name,
+      item.comment || '',
+      Math.round(item.calorie * (item.scale || 0)),
+      Number((item.protein * (item.scale || 0)).toFixed(1)),
+      Number((item.fat * (item.scale || 0)).toFixed(1)),
+      Number((item.carbohydrate * (item.scale || 0)).toFixed(1)),
+      item.confidence || 0
+    ]);
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A:H:append?valueInputOption=USER_ENTERED`;
+    
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        values: rows
+      })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error?.message || '書き込みに失敗しました');
+    }
+
     submitMessage.value = 'スプレッドシートに登録しました！';
+    emit('submit-success');
     setTimeout(() => { close(); }, 1500);
   } catch (error: any) {
     console.error(error);
@@ -102,6 +203,11 @@ defineExpose({
         <button @click="close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
         <h2 class="text-xl font-bold mb-6">分析結果</h2>
         
+        <!-- プレビュー画像 -->
+        <div v-if="previewImageUrl" class="mb-6">
+          <img :src="previewImageUrl" class="w-full rounded-lg shadow-md" alt="Preview" />
+        </div>
+        
         <!-- 登録日時の編集 -->
         <div class="mb-6">
           <label class="block text-sm font-medium text-gray-700 mb-1">登録日時</label>
@@ -110,6 +216,12 @@ defineExpose({
             v-model="registeredAt" 
             class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+
+        <!-- 合計カロリー -->
+        <div class="mb-6 p-4 bg-orange-50 rounded-lg flex justify-between items-center">
+          <span class="font-bold text-gray-700">合計カロリー</span>
+          <span class="font-bold text-2xl text-orange-600">{{ totalCalories }} kcal</span>
         </div>
 
         <div v-for="(item, index) in nutritionResults" :key="index" class="mb-6 pb-6 border-b border-gray-200 last:border-0 last:pb-0 last:mb-0">

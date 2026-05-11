@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import SettingsModal from '~/components/SettingsModal.vue';
 import ResultModal from '~/components/ResultModal.vue';
 import CameraButton from '~/components/CameraButton.vue';
 import ManualInput from '~/components/ManualInput.vue';
+import HistoryList from '~/components/HistoryList.vue';
 
 // 状態管理
 const imagePreview = ref<string | null>(null);
@@ -14,6 +15,8 @@ const rawResults = ref<any[]>([]);
 // 設定モーダル参照
 const settingsModalRef = ref<InstanceType<typeof SettingsModal> | null>(null);
 const resultModalRef = ref<InstanceType<typeof ResultModal> | null>(null);
+const manualInputRef = ref<InstanceType<typeof ManualInput> | null>(null);
+const historyListRef = ref<InstanceType<typeof HistoryList> | null>(null);
 
 // APIキー変更検知用
 const apiKeyVersion = ref(0);
@@ -23,7 +26,19 @@ const apiKeyVersion = ref(0);
  */
 const onSettingsSaved = () => {
   apiKeyVersion.value++;
+  if (isSettingsValid.value) {
+    historyListRef.value?.loadHistory();
+  }
 };
+
+onMounted(() => {
+  if (isSettingsValid.value) {
+    // 少し待ってから履歴を読み込む（Google Identity Servicesのロード待ち等）
+    setTimeout(() => {
+      historyListRef.value?.loadHistory();
+    }, 1000);
+  }
+});
 
 /**
  * 設定からAPIキーを取得 (リアクティブ)
@@ -36,15 +51,23 @@ const apiKey = computed(() => {
   return settings.geminiApiKey || null;
 });
 
-const dataApiEndpoint = computed(() => {
+const googleClientId = computed(() => {
   void apiKeyVersion.value;
   const savedSettings = localStorage.getItem('calorie-app-settings');
   if (!savedSettings) return null;
   const settings = JSON.parse(savedSettings);
-  return settings.dataApiEndpoint || null;
+  return settings.googleClientId || null;
 });
 
-const isSettingsValid = computed(() => !!apiKey.value && !!dataApiEndpoint.value);
+const spreadsheetId = computed(() => {
+  void apiKeyVersion.value;
+  const savedSettings = localStorage.getItem('calorie-app-settings');
+  if (!savedSettings) return null;
+  const settings = JSON.parse(savedSettings);
+  return settings.spreadsheetId || null;
+});
+
+const isSettingsValid = computed(() => !!apiKey.value && !!googleClientId.value && !!spreadsheetId.value);
 
 const databaseUrl = computed(() => {
   void apiKeyVersion.value;
@@ -85,11 +108,19 @@ const handleProcessEnd = (results: any[], previewUrl: string) => {
   imagePreview.value = previewUrl;
   rawResults.value = results;
   hasResults.value = true;
-  resultModalRef.value?.open(results);
+  resultModalRef.value?.open(results, previewUrl);
 };
 
 const handleProcessError = (message: string) => {
   statusMessage.value = message;
+};
+
+const handleSubmitSuccess = () => {
+  statusMessage.value = 'データ登録が完了しました';
+  // 履歴一覧を再読み込みする
+  if (isSettingsValid.value) {
+    historyListRef.value?.loadHistory();
+  }
 };
 </script>
 
@@ -108,19 +139,10 @@ const handleProcessError = (message: string) => {
 
     <h1 class="text-2xl font-bold mb-8">食事記録カメラ</h1>
 
-    <!-- カメラボタンコンポーネント -->
-    <CameraButton 
-      :api-key="apiKey"
-      :is-settings-valid="isSettingsValid"
-      @require-settings="handleRequireSettings"
-      @process-start="handleProcessStart"
-      @process-update="handleProcessUpdate"
-      @process-end="handleProcessEnd"
-      @process-error="handleProcessError"
-    />
-
-    <!-- 手動入力コンポーネント -->
-    <ManualInput 
+    <!-- 入力アクション群 -->
+    <div class="w-full max-w-xs flex justify-between items-center">
+      <!-- カメラボタンコンポーネント -->
+      <CameraButton 
         :api-key="apiKey"
         :is-settings-valid="isSettingsValid"
         @require-settings="handleRequireSettings"
@@ -128,7 +150,21 @@ const handleProcessError = (message: string) => {
         @process-update="handleProcessUpdate"
         @process-end="handleProcessEnd"
         @process-error="handleProcessError"
-    />
+      />
+
+      <!-- 手動入力コンポーネント -->
+      <ManualInput 
+          ref="manualInputRef"
+          v-if="isSettingsValid"
+          :api-key="apiKey"
+          :is-settings-valid="isSettingsValid"
+          @require-settings="handleRequireSettings"
+          @process-start="handleProcessStart"
+          @process-update="handleProcessUpdate"
+          @process-end="handleProcessEnd"
+          @process-error="handleProcessError"
+      />
+    </div>
 
     <!-- 外部リンクボタン群 -->
     <div v-if="databaseUrl || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
@@ -142,21 +178,20 @@ const handleProcessError = (message: string) => {
 
     <p class="mt-4 text-sm text-gray-600">{{ statusMessage }}</p>
 
-    <div v-if="imagePreview" class="mt-8 w-full max-w-xs">
-      <img :src="imagePreview" class="w-full rounded-lg shadow-md" alt="Preview" />
-      
-      <!-- 栄養分析結果を再表示するボタン -->
-      <div v-if="hasResults" class="mt-4">
-        <button @click="resultModalRef?.open(rawResults)" class="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold shadow hover:bg-blue-200 transition-colors">
-          分析結果を確認する
-        </button>
-      </div>
+    <!-- 直近24時間の履歴 -->
+    <HistoryList ref="historyListRef" />
+
+    <!-- 栄養分析結果を再表示するボタン -->
+    <div v-if="hasResults" class="mt-8 w-full max-w-xs">
+      <button @click="resultModalRef?.open(rawResults, imagePreview || '')" class="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold shadow hover:bg-blue-200 transition-colors">
+        分析結果を確認する
+      </button>
     </div>
 
     <!-- 設定オーバーレイ -->
     <SettingsModal ref="settingsModalRef" @settings-saved="onSettingsSaved" />
 
     <!-- 結果モーダル -->
-    <ResultModal ref="resultModalRef" />
+    <ResultModal ref="resultModalRef" @submit-success="handleSubmitSuccess" />
   </div>
 </template>
