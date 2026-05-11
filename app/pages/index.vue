@@ -125,7 +125,7 @@ const handleSubmitSuccess = () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col items-center p-6 bg-gray-50">
+  <div class="h-[100dvh] flex flex-col items-center p-6 bg-gray-50 overflow-hidden">
     <!-- 設定ボタン -->
     <button 
       class="fixed top-4 right-4 w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
@@ -182,7 +182,7 @@ const handleSubmitSuccess = () => {
     <HistoryList ref="historyListRef" />
 
     <!-- 栄養分析結果を再表示するボタン -->
-    <div v-if="hasResults" class="mt-8 w-full max-w-xs">
+    <div v-if="hasResults" class="mt-8 w-full max-w-xs shrink-0">
       <button @click="resultModalRef?.open(rawResults, imagePreview || '')" class="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold shadow hover:bg-blue-200 transition-colors">
         分析結果を確認する
       </button>

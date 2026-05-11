@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 
 declare const google: any;
 
 const isLoading = ref(false);
 const errorMessage = ref('');
 const historyGroups = ref<any[]>([]);
+
+const total24hCalorie = computed(() => {
+  return historyGroups.value.reduce((sum, group) => sum + group.totalCalorie, 0);
+});
 
 const extractSpreadsheetId = (input: string) => {
   if (!input) return '';
@@ -198,9 +202,12 @@ defineExpose({
 </script>
 
 <template>
-  <div class="w-full max-w-xs mt-8">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-gray-800">直近24時間の食事</h2>
+  <div class="w-full max-w-xs mt-8 flex flex-col flex-1 min-h-0">
+    <div class="flex justify-between items-center mb-4 shrink-0">
+      <div class="flex items-baseline gap-2">
+        <h2 class="text-xl font-bold text-gray-800">直近24時間の食事</h2>
+        <span class="text-sm font-medium text-gray-600" v-if="total24hCalorie > 0">{{ total24hCalorie }} kcal</span>
+      </div>
       <button @click="loadHistory" class="text-blue-600 hover:text-blue-800 transition-colors" :disabled="isLoading">
         <svg v-if="!isLoading" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -212,16 +219,16 @@ defineExpose({
       </button>
     </div>
 
-    <div v-if="errorMessage" class="text-red-500 text-sm mb-4">
+    <div v-if="errorMessage" class="text-red-500 text-sm mb-4 shrink-0">
       {{ errorMessage }}
     </div>
     
-    <div v-if="historyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl">
+    <div v-if="historyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
       直近24時間の記録はありません
     </div>
 
-    <div class="space-y-4">
-      <div v-for="group in historyGroups" :key="group.timeKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100">
+    <div class="space-y-4 overflow-y-auto flex-1 min-h-0 pb-4 pr-2">
+      <div v-for="group in historyGroups" :key="group.timeKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
         <!-- ヘッダー部分 -->
         <div class="flex justify-between items-baseline mb-2">
           <span class="font-bold text-gray-800">{{ formatTimeAgo(group.timeKey) }}</span>
