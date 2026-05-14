@@ -1,11 +1,97 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
+import { Line } from 'vue-chartjs'
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 declare const google: any;
 
 const isLoading = ref(false);
 const errorMessage = ref('');
 const historyGroups = ref<any[]>([]);
+
+const viewMode = ref<'recent' | 'daily' | 'chart'>('recent');
+const dailyGroups = ref<any[]>([]);
+const currentPage = ref(1);
+const itemsPerPage = 10;
+const chartPeriod = ref<'1w' | '1m' | '3m' | '1y'>('1w');
+
+const chartData = computed(() => {
+  const now = new Date();
+  const pastDate = new Date();
+  
+  if (chartPeriod.value === '1w') {
+    pastDate.setDate(now.getDate() - 7);
+  } else if (chartPeriod.value === '1m') {
+    pastDate.setMonth(now.getMonth() - 1);
+  } else if (chartPeriod.value === '3m') {
+    pastDate.setMonth(now.getMonth() - 3);
+  } else if (chartPeriod.value === '1y') {
+    pastDate.setFullYear(now.getFullYear() - 1);
+  }
+
+  // dailyGroupsは新しい順(降順)になっているので、指定期間でフィルタ後、グラフ用に昇順(古い順)に反転
+  const filtered = dailyGroups.value.filter(day => {
+    return new Date(day.dateKey) >= pastDate;
+  });
+
+  const reversed = [...filtered].reverse();
+
+  return {
+    labels: reversed.map(d => {
+      // 2024/05/15 -> 05/15 のように年を省略
+      const parts = d.dateKey.split('/');
+      return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d.dateKey;
+    }),
+    datasets: [
+      {
+        label: '摂取カロリー (kcal)',
+        backgroundColor: '#ea580c',
+        borderColor: '#ea580c',
+        data: reversed.map(d => d.totalCalorie),
+        tension: 0.1,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }
+    ]
+  };
+});
+
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false
+    }
+  },
+  scales: {
+    y: {
+      beginAtZero: true
+    }
+  }
+};
+
+const paginatedDailyGroups = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return dailyGroups.value.slice(start, end);
+});
+
+const totalPages = computed(() => Math.ceil(dailyGroups.value.length / itemsPerPage));
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) currentPage.value++;
+};
+
+const prevPage = () => {
+  if (currentPage.value > 1) currentPage.value--;
+};
+
+watch(viewMode, () => {
+  currentPage.value = 1;
+});
 
 const total24hCalorie = computed(() => {
   return historyGroups.value.reduce((sum, group) => sum + group.totalCalorie, 0);
@@ -142,6 +228,44 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string) => {
 
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // 日毎の集計
+    const dailyGrouped = rows.reduce((acc, row) => {
+      if (!row[0]) return acc;
+      const dateObj = new Date(row[0]);
+      if (isNaN(dateObj.getTime())) return acc;
+      
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const dateKey = `${year}/${month}/${day}`;
+
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          dateKey,
+          totalCalorie: 0,
+          totalProtein: 0,
+          totalFat: 0,
+          totalCarb: 0
+        };
+      }
+
+      const p = parseFloat(row[4]) || 0;
+      const f = parseFloat(row[5]) || 0;
+      const c = parseFloat(row[6]) || 0;
+      const cal = parseInt(row[3]) || 0;
+
+      acc[dateKey].totalCalorie += cal;
+      acc[dateKey].totalProtein += p;
+      acc[dateKey].totalFat += f;
+      acc[dateKey].totalCarb += c;
+
+      return acc;
+    }, {} as Record<string, any>);
+
+    dailyGroups.value = Object.values(dailyGrouped).sort((a, b) => {
+      return new Date(b.dateKey).getTime() - new Date(a.dateKey).getTime();
+    });
     
     const recentRows = rows.filter(row => {
       if (!row[0]) return false;
@@ -204,9 +328,44 @@ defineExpose({
 <template>
   <div class="w-full max-w-xs mt-8 flex flex-col flex-1 min-h-0">
     <div class="flex justify-between items-center mb-4 shrink-0">
-      <div class="flex items-baseline gap-2">
-        <h2 class="text-xl font-bold text-gray-800">直近24時間の食事</h2>
-        <span class="text-sm font-medium text-gray-600" v-if="total24hCalorie > 0">{{ total24hCalorie }} kcal</span>
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="relative flex items-center">
+          <select v-model="viewMode" class="text-xl font-bold text-gray-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative">
+            <option value="recent">直近24時間の食事</option>
+            <option value="daily">日毎の合計カロリー</option>
+            <option value="chart">グラフ</option>
+          </select>
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-gray-800">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mt-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <span class="text-sm font-medium text-gray-600 whitespace-nowrap" v-if="viewMode === 'recent' && total24hCalorie > 0">{{ total24hCalorie }} kcal</span>
+        
+        <!-- ページネーション（dailyモード時） -->
+        <div v-if="viewMode === 'daily' && totalPages > 1" class="flex items-center gap-2 text-gray-600">
+          <button @click="prevPage" :disabled="currentPage === 1" class="flex items-center justify-center w-6 h-6 hover:bg-gray-200 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-colors">◀</button>
+          <span class="text-sm font-bold">{{ currentPage }}</span>
+          <button @click="nextPage" :disabled="currentPage === totalPages" class="flex items-center justify-center w-6 h-6 hover:bg-gray-200 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-colors">▶</button>
+        </div>
+
+        <!-- グラフ期間選択（chartモード時） -->
+        <div v-if="viewMode === 'chart'" class="flex items-center text-gray-600">
+          <div class="relative flex items-center">
+            <select v-model="chartPeriod" class="bg-gray-100 text-sm font-medium text-gray-700 rounded-lg pl-3 pr-8 py-1.5 outline-none cursor-pointer appearance-none border border-gray-200">
+              <option value="1w">1週間</option>
+              <option value="1m">1ヶ月</option>
+              <option value="3m">3ヶ月</option>
+              <option value="1y">1年</option>
+            </select>
+            <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
       <button @click="loadHistory" class="text-blue-600 hover:text-blue-800 transition-colors" :disabled="isLoading">
         <svg v-if="!isLoading" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -223,36 +382,75 @@ defineExpose({
       {{ errorMessage }}
     </div>
     
-    <div v-if="historyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
+    <div v-if="viewMode === 'recent' && historyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
       直近24時間の記録はありません
+    </div>
+    <div v-if="viewMode === 'daily' && dailyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
+      記録はありません
     </div>
 
     <div class="space-y-4 overflow-y-auto flex-1 min-h-0 pb-4 pr-2">
-      <div v-for="group in historyGroups" :key="group.timeKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
-        <!-- ヘッダー部分 -->
-        <div class="flex justify-between items-baseline mb-2">
-          <span class="font-bold text-gray-800">{{ formatTimeAgo(group.timeKey) }}</span>
-          <span class="text-xs text-gray-500">({{ formatDate(group.timeKey) }})</span>
+      <!-- 最近の履歴 -->
+      <template v-if="viewMode === 'recent'">
+        <div v-for="group in historyGroups" :key="group.timeKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
+          <!-- ヘッダー部分 -->
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="font-bold text-gray-800">{{ formatTimeAgo(group.timeKey) }}</span>
+            <span class="text-xs text-gray-500">({{ formatDate(group.timeKey) }})</span>
+          </div>
+          
+          <!-- 料理名のリスト（シンプルにカンマ区切りなどで表示） -->
+          <div class="text-sm text-gray-600 mb-3 line-clamp-2">
+            {{ group.items.map(i => i.dish_name).join('、') }}
+          </div>
+          
+          <!-- 合計カロリー -->
+          <div class="mb-2 text-gray-800">
+            <span class="text-sm">合計カロリー：</span>
+            <span class="font-bold text-xl text-orange-600">{{ group.totalCalorie }} <span class="text-sm">kcal</span></span>
+          </div>
+          
+          <!-- PFCバランス -->
+          <div class="flex gap-4 text-sm font-medium text-gray-600">
+            <div>F <span class="text-gray-800">{{ group.totalFat.toFixed(1) }}</span> g</div>
+            <div>P <span class="text-gray-800">{{ group.totalProtein.toFixed(1) }}</span> g</div>
+            <div>C <span class="text-gray-800">{{ group.totalCarb.toFixed(1) }}</span> g</div>
+          </div>
         </div>
-        
-        <!-- 料理名のリスト（シンプルにカンマ区切りなどで表示） -->
-        <div class="text-sm text-gray-600 mb-3 line-clamp-2">
-          {{ group.items.map(i => i.dish_name).join('、') }}
+      </template>
+
+      <!-- 日毎の合計 -->
+      <template v-else-if="viewMode === 'daily'">
+        <div v-for="day in paginatedDailyGroups" :key="day.dateKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
+          <!-- ヘッダー部分 -->
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="font-bold text-gray-800">{{ day.dateKey }}</span>
+          </div>
+          
+          <!-- 合計カロリー -->
+          <div class="mb-2 text-gray-800">
+            <span class="text-sm">合計カロリー：</span>
+            <span class="font-bold text-xl text-orange-600">{{ day.totalCalorie }} <span class="text-sm">kcal</span></span>
+          </div>
+          
+          <!-- PFCバランス -->
+          <div class="flex gap-4 text-sm font-medium text-gray-600">
+            <div>F <span class="text-gray-800">{{ day.totalFat.toFixed(1) }}</span> g</div>
+            <div>P <span class="text-gray-800">{{ day.totalProtein.toFixed(1) }}</span> g</div>
+            <div>C <span class="text-gray-800">{{ day.totalCarb.toFixed(1) }}</span> g</div>
+          </div>
         </div>
-        
-        <!-- 合計カロリー -->
-        <div class="mb-2 text-gray-800">
-          <span class="text-sm">合計カロリー：</span>
-          <span class="font-bold text-xl text-orange-600">{{ group.totalCalorie }} <span class="text-sm">kcal</span></span>
+      </template>
+
+      <!-- グラフ -->
+      <template v-else-if="viewMode === 'chart'">
+        <div class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 min-h-[300px] flex flex-col justify-center">
+          <div v-if="chartData.labels.length === 0" class="text-gray-500 text-center">
+            該当期間のデータがありません
+          </div>
+          <Line v-else :data="chartData" :options="chartOptions" class="w-full h-full" />
         </div>
-        
-        <!-- PFCバランス -->
-        <div class="flex gap-4 text-sm font-medium text-gray-600">
-          <div>F <span class="text-gray-800">{{ group.totalFat.toFixed(1) }}</span> g</div>
-          <div>P <span class="text-gray-800">{{ group.totalProtein.toFixed(1) }}</span> g</div>
-          <div>C <span class="text-gray-800">{{ group.totalCarb.toFixed(1) }}</span> g</div>
-        </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
