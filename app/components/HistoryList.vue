@@ -18,6 +18,10 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const chartPeriod = ref<'1w' | '1m' | '3m' | '1y'>('1w');
 
+const chartMinWeight = ref<number | undefined>(undefined);
+const chartMinBodyFat = ref<number | undefined>(undefined);
+const chartMinCalorie = ref<number | undefined>(undefined);
+
 const chartData = computed(() => {
   const now = new Date();
   const pastDate = new Date();
@@ -137,7 +141,7 @@ const bodyCompChartData = computed(() => {
   };
 });
 
-const bodyCompChartOptions = {
+const bodyCompChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -150,23 +154,26 @@ const bodyCompChartOptions = {
     'y-weight': {
       type: 'linear' as const,
       position: 'left' as const,
-      title: { display: true, text: 'kg' }
+      title: { display: true, text: 'kg' },
+      min: chartMinWeight.value
     },
     'y-fat': {
       type: 'linear' as const,
       position: 'left' as const,
       title: { display: true, text: '%' },
-      grid: { drawOnChartArea: false }
+      grid: { drawOnChartArea: false },
+      min: chartMinBodyFat.value
     },
     'y-calorie': {
       type: 'linear' as const,
       position: 'right' as const,
-      beginAtZero: true,
+      beginAtZero: chartMinCalorie.value === undefined,
       title: { display: true, text: 'kcal' },
-      grid: { drawOnChartArea: false }
+      grid: { drawOnChartArea: false },
+      min: chartMinCalorie.value
     }
   }
-};
+}));
 
 const chartOptions = {
   responsive: true,
@@ -267,6 +274,15 @@ const loadHistory = async () => {
     clientId = settings.googleClientId || '';
     sheetIdRaw = settings.spreadsheetId || '';
     bodyCompositionSheetIdRaw = settings.bodyCompositionSheetId || '';
+    
+    if (settings.minWeight !== undefined && settings.minWeight !== '') chartMinWeight.value = Number(settings.minWeight);
+    else chartMinWeight.value = undefined;
+    
+    if (settings.minBodyFat !== undefined && settings.minBodyFat !== '') chartMinBodyFat.value = Number(settings.minBodyFat);
+    else chartMinBodyFat.value = undefined;
+
+    if (settings.minCalorie !== undefined && settings.minCalorie !== '') chartMinCalorie.value = Number(settings.minCalorie);
+    else chartMinCalorie.value = undefined;
   }
 
   const sheetId = extractSpreadsheetId(sheetIdRaw);

@@ -22,6 +22,9 @@ const spreadsheetId = ref('');
 const bodyCompositionSheetId = ref('');
 const databaseUrl = ref('');
 const notebooklmUrl = ref('');
+const minWeight = ref<number | ''>('');
+const minBodyFat = ref<number | ''>('');
+const minCalorie = ref<number | ''>('');
 
 // ローカルストレージから読み込み
 const loadSettings = () => {
@@ -34,6 +37,9 @@ const loadSettings = () => {
     bodyCompositionSheetId.value = data.bodyCompositionSheetId || '';
     databaseUrl.value = data.databaseUrl || '';
     notebooklmUrl.value = data.notebooklmUrl || '';
+    minWeight.value = data.minWeight !== undefined ? data.minWeight : '';
+    minBodyFat.value = data.minBodyFat !== undefined ? data.minBodyFat : '';
+    minCalorie.value = data.minCalorie !== undefined ? data.minCalorie : '';
   }
 };
 
@@ -45,7 +51,10 @@ const saveSettings = () => {
     spreadsheetId: spreadsheetId.value,
     bodyCompositionSheetId: bodyCompositionSheetId.value,
     databaseUrl: databaseUrl.value,
-    notebooklmUrl: notebooklmUrl.value
+    notebooklmUrl: notebooklmUrl.value,
+    minWeight: minWeight.value,
+    minBodyFat: minBodyFat.value,
+    minCalorie: minCalorie.value
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   
@@ -83,7 +92,7 @@ defineExpose({
     <div v-if="showSettings" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <!-- モーダルコンテンツ（スライドイン） -->
       <Transition name="modal-slide">
-        <div v-if="showSettings" class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
+        <div v-if="showSettings" class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6 max-h-[90vh] overflow-y-auto">
           <!-- ヘッダー -->
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold">設定</h2>
@@ -153,7 +162,7 @@ defineExpose({
           </div>
 
           <!-- 項目5: Notebooklm URL -->
-          <div class="mb-6">
+          <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">Notebooklm URL</label>
             <input 
               v-model="notebooklmUrl"
@@ -161,6 +170,25 @@ defineExpose({
               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Notebooklm URLを入力"
             />
+          </div>
+
+          <!-- グラフの最小値設定 -->
+          <div class="mb-6 border-t pt-4">
+            <h3 class="font-bold text-gray-700 mb-3">グラフの最小値設定 (任意)</h3>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">体重 (kg)</label>
+                <input v-model.number="minWeight" type="number" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例: 60" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">体脂肪率 (%)</label>
+                <input v-model.number="minBodyFat" type="number" step="0.1" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例: 15" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">カロリー (kcal)</label>
+                <input v-model.number="minCalorie" type="number" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例: 1500" />
+              </div>
+            </div>
           </div>
 
           <!-- 登録ボタン -->
