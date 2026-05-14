@@ -19,6 +19,7 @@ const showClientIdHelp = ref(false);
 const geminiApiKey = ref('');
 const googleClientId = ref('');
 const spreadsheetId = ref('');
+const bodyCompositionSheetId = ref('');
 const databaseUrl = ref('');
 const notebooklmUrl = ref('');
 
@@ -30,6 +31,7 @@ const loadSettings = () => {
     geminiApiKey.value = data.geminiApiKey || '';
     googleClientId.value = data.googleClientId || '';
     spreadsheetId.value = data.spreadsheetId || '';
+    bodyCompositionSheetId.value = data.bodyCompositionSheetId || '';
     databaseUrl.value = data.databaseUrl || '';
     notebooklmUrl.value = data.notebooklmUrl || '';
   }
@@ -41,6 +43,7 @@ const saveSettings = () => {
     geminiApiKey: geminiApiKey.value,
     googleClientId: googleClientId.value,
     spreadsheetId: spreadsheetId.value,
+    bodyCompositionSheetId: bodyCompositionSheetId.value,
     databaseUrl: databaseUrl.value,
     notebooklmUrl: notebooklmUrl.value
   };
@@ -124,6 +127,17 @@ defineExpose({
               type="text" 
               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="スプレッドシートIDを入力"
+            />
+          </div>
+
+          <!-- 体組織DBのシートID -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">体組織DBのシートID (任意)</label>
+            <input 
+              v-model="bodyCompositionSheetId"
+              type="text" 
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="体組織DBのシートIDを入力"
             />
           </div>
 
