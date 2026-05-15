@@ -127,7 +127,7 @@ const handleSubmitSuccess = () => {
 </script>
 
 <template>
-  <div class="h-[100dvh] flex flex-col items-center p-6 bg-gray-50 overflow-hidden">
+  <div class="h-full flex flex-col items-center p-6 bg-gray-50 overflow-hidden">
     <!-- 設定ボタン -->
     <button 
       class="fixed top-4 right-4 w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
@@ -139,7 +139,10 @@ const handleSubmitSuccess = () => {
       </svg>
     </button>
 
-    <h1 class="text-2xl font-bold mb-8">食事記録カメラ</h1>
+    <h1 class="text-3xl font-bold mb-8">
+      <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">RECAST</span>
+      <span class="text-gray-400">/.</span>
+    </h1>
 
     <!-- 入力アクション群 -->
     <div class="w-full max-w-xs flex justify-between items-center">

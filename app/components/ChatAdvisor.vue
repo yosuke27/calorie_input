@@ -112,7 +112,7 @@ const sendMessage = async () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-gray-50 z-50 flex flex-col h-[100dvh]">
+  <div class="fixed inset-0 bg-gray-50 z-50 flex flex-col h-full">
     <!-- ヘッダー -->
     <header class="bg-white/80 backdrop-blur-md text-gray-800 h-14 flex items-center px-4 shrink-0 border-b border-gray-200 relative z-10">
       <button @click="emit('close')" class="flex items-center text-gray-500 hover:text-gray-800 h-full pr-4 transition-colors">
