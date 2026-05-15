@@ -200,7 +200,7 @@ const handleSubmitSuccess = () => {
     <ResultModal ref="resultModalRef" @submit-success="handleSubmitSuccess" />
 
     <!-- チャットアドバイザー -->
-    <Transition name="fade">
+    <Transition name="slide-over">
       <ChatAdvisor 
         v-if="showChatAdvisor" 
         :api-key="apiKey" 
@@ -211,3 +211,15 @@ const handleSubmitSuccess = () => {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+/* スライドオーバー（画面の横からの切り替え）アニメーション */
+.slide-over-enter-active,
+.slide-over-leave-active {
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.slide-over-enter-from,
+.slide-over-leave-to {
+  transform: translateX(100%);
+}
+</style>
