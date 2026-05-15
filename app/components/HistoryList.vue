@@ -12,12 +12,14 @@ const errorMessage = ref('');
 const historyGroups = ref<any[]>([]);
 const bodyCompGroups = ref<any[]>([]);
 
-const viewMode = ref<'recent' | 'daily' | 'chart' | 'bodyComp'>('recent');
+const viewMode = ref<'today' | 'recent' | 'daily' | 'chart' | 'bodyComp'>('today');
+const todayGroups = ref<any[]>([]);
 const dailyGroups = ref<any[]>([]);
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const chartPeriod = ref<'1w' | '1m' | '3m' | '1y'>('1w');
 
+const targetCalorie = ref<number | undefined>(undefined);
 const chartMinWeight = ref<number | undefined>(undefined);
 const chartMinBodyFat = ref<number | undefined>(undefined);
 const chartMinCalorie = ref<number | undefined>(undefined);
@@ -214,6 +216,10 @@ const total24hCalorie = computed(() => {
   return historyGroups.value.reduce((sum, group) => sum + group.totalCalorie, 0);
 });
 
+const totalTodayCalorie = computed(() => {
+  return todayGroups.value.reduce((sum, group) => sum + group.totalCalorie, 0);
+});
+
 const extractSpreadsheetId = (input: string): string => {
   if (!input) return '';
   const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
@@ -283,6 +289,9 @@ const loadHistory = async () => {
 
     if (settings.minCalorie !== undefined && settings.minCalorie !== '') chartMinCalorie.value = Number(settings.minCalorie);
     else chartMinCalorie.value = undefined;
+
+    if (settings.targetCalorie !== undefined && settings.targetCalorie !== '') targetCalorie.value = Number(settings.targetCalorie);
+    else targetCalorie.value = undefined;
   }
 
   const sheetId = extractSpreadsheetId(sheetIdRaw);
@@ -356,6 +365,12 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
       const now = new Date();
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+      const todayStart = new Date(now);
+      todayStart.setHours(3, 0, 0, 0);
+      if (now.getHours() < 3) {
+        todayStart.setDate(todayStart.getDate() - 1);
+      }
+
       // 日毎の集計
       const dailyGrouped = rows.reduce((acc: Record<string, any>, row: any[]) => {
         if (!row[0]) return acc;
@@ -401,43 +416,53 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
         return rowDate >= oneDayAgo && rowDate <= now;
       });
 
-      // 登録日時でグループ化
-      const grouped = recentRows.reduce((acc: Record<string, any>, row: any[]) => {
-        const timeKey = row[0]; // A列: 登録日時
-        if (!acc[timeKey]) {
-          acc[timeKey] = {
-            timeKey,
-            items: [],
-            totalCalorie: 0,
-            totalProtein: 0,
-            totalFat: 0,
-            totalCarb: 0
-          };
-        }
-        
-        const p = parseFloat(row[4]) || 0;
-        const f = parseFloat(row[5]) || 0;
-        const c = parseFloat(row[6]) || 0;
-        const cal = parseInt(row[3]) || 0;
-        
-        acc[timeKey].items.push({
-          dish_name: row[1],
-          calorie: cal,
-          p, f, c
-        });
-        
-        acc[timeKey].totalCalorie += cal;
-        acc[timeKey].totalProtein += p;
-        acc[timeKey].totalFat += f;
-        acc[timeKey].totalCarb += c;
-        
-        return acc;
-      }, {} as Record<string, any>);
-      
-      // 配列に変換して降順（新しい順）にソート
-      historyGroups.value = Object.values(grouped).sort((a: any, b: any) => {
-        return new Date(b.timeKey).getTime() - new Date(a.timeKey).getTime();
+      const todayRows = rows.filter((row: any) => {
+        if (!row[0]) return false;
+        const rowDate = new Date(row[0]);
+        // 本日のデータ（3時起点）のみをフィルタリング
+        return rowDate >= todayStart && rowDate <= now;
       });
+
+      const groupRows = (targetRows: any[]) => {
+        const grouped = targetRows.reduce((acc: Record<string, any>, row: any[]) => {
+          const timeKey = row[0];
+          if (!acc[timeKey]) {
+            acc[timeKey] = {
+              timeKey,
+              items: [],
+              totalCalorie: 0,
+              totalProtein: 0,
+              totalFat: 0,
+              totalCarb: 0
+            };
+          }
+          
+          const p = parseFloat(row[4]) || 0;
+          const f = parseFloat(row[5]) || 0;
+          const c = parseFloat(row[6]) || 0;
+          const cal = parseInt(row[3]) || 0;
+          
+          acc[timeKey].items.push({
+            dish_name: row[1],
+            calorie: cal,
+            p, f, c
+          });
+          
+          acc[timeKey].totalCalorie += cal;
+          acc[timeKey].totalProtein += p;
+          acc[timeKey].totalFat += f;
+          acc[timeKey].totalCarb += c;
+          
+          return acc;
+        }, {} as Record<string, any>);
+        
+        return Object.values(grouped).sort((a: any, b: any) => {
+          return new Date(b.timeKey).getTime() - new Date(a.timeKey).getTime();
+        });
+      };
+
+      historyGroups.value = groupRows(recentRows);
+      todayGroups.value = groupRows(todayRows);
     }
 
     if (bodyCompSheetId) {
@@ -499,6 +524,7 @@ defineExpose({
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative flex items-center">
           <select v-model="viewMode" class="text-xl font-bold text-gray-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative">
+            <option value="today">本日の食事</option>
             <option value="recent">直近24時間の食事</option>
             <option value="daily">日毎の合計カロリー</option>
             <option value="chart">グラフ</option>
@@ -510,7 +536,13 @@ defineExpose({
             </svg>
           </div>
         </div>
-        <span class="text-sm font-medium text-gray-600 whitespace-nowrap" v-if="viewMode === 'recent' && total24hCalorie > 0">{{ total24hCalorie }} kcal</span>
+        <template v-if="viewMode === 'today'">
+          <span class="text-sm font-medium text-gray-600 whitespace-nowrap" v-if="totalTodayCalorie > 0">{{ totalTodayCalorie }} kcal</span>
+          <span v-if="targetCalorie" class="text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap" :class="targetCalorie - totalTodayCalorie >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+            {{ targetCalorie - totalTodayCalorie >= 0 ? '不足' : '超過' }}: {{ Math.abs(targetCalorie - totalTodayCalorie) }} kcal
+          </span>
+        </template>
+        <span class="text-sm font-medium text-gray-600 whitespace-nowrap" v-else-if="viewMode === 'recent' && total24hCalorie > 0">{{ total24hCalorie }} kcal</span>
         
         <!-- ページネーション（dailyモード時） -->
         <div v-if="viewMode === 'daily' && totalPages > 1" class="flex items-center gap-2 text-gray-600">

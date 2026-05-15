@@ -5,12 +5,14 @@ import ResultModal from '~/components/ResultModal.vue';
 import CameraButton from '~/components/CameraButton.vue';
 import ManualInput from '~/components/ManualInput.vue';
 import HistoryList from '~/components/HistoryList.vue';
+import ChatAdvisor from '~/components/ChatAdvisor.vue';
 
 // 状態管理
 const imagePreview = ref<string | null>(null);
 const statusMessage = ref('');
 const hasResults = ref(false);
 const rawResults = ref<any[]>([]);
+const showChatAdvisor = ref(false);
 
 // 設定モーダル参照
 const settingsModalRef = ref<InstanceType<typeof SettingsModal> | null>(null);
@@ -166,12 +168,15 @@ const handleSubmitSuccess = () => {
       />
     </div>
 
-    <!-- 外部リンクボタン群 -->
-    <div v-if="databaseUrl || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
+    <!-- 外部リンク/機能ボタン群 -->
+    <div v-if="databaseUrl || isSettingsValid || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
       <a v-if="databaseUrl" :href="databaseUrl" target="_blank" rel="noopener noreferrer" class="flex-1 bg-green-500 text-white text-center py-3 rounded-xl font-bold shadow-md hover:bg-green-600 transition-colors">
         データベース
       </a>
-      <a v-if="notebooklmUrl" :href="notebooklmUrl" target="_blank" rel="noopener noreferrer" class="flex-1 bg-purple-500 text-white text-center py-3 rounded-xl font-bold shadow-md hover:bg-purple-600 transition-colors">
+      <button v-if="isSettingsValid" @click="showChatAdvisor = true" class="flex-1 bg-purple-500 text-white text-center py-3 rounded-xl font-bold shadow-md hover:bg-purple-600 transition-colors">
+        アドバイザー
+      </button>
+      <a v-else-if="notebooklmUrl" :href="notebooklmUrl" target="_blank" rel="noopener noreferrer" class="flex-1 bg-purple-500 text-white text-center py-3 rounded-xl font-bold shadow-md hover:bg-purple-600 transition-colors">
         アドバイザー
       </a>
     </div>
@@ -193,5 +198,16 @@ const handleSubmitSuccess = () => {
 
     <!-- 結果モーダル -->
     <ResultModal ref="resultModalRef" @submit-success="handleSubmitSuccess" />
+
+    <!-- チャットアドバイザー -->
+    <Transition name="fade">
+      <ChatAdvisor 
+        v-if="showChatAdvisor" 
+        :api-key="apiKey" 
+        :is-settings-valid="isSettingsValid" 
+        @close="showChatAdvisor = false" 
+        @require-settings="handleRequireSettings"
+      />
+    </Transition>
   </div>
 </template>

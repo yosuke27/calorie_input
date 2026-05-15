@@ -25,6 +25,7 @@ const notebooklmUrl = ref('');
 const minWeight = ref<number | ''>('');
 const minBodyFat = ref<number | ''>('');
 const minCalorie = ref<number | ''>('');
+const targetCalorie = ref<number | ''>('');
 
 // ローカルストレージから読み込み
 const loadSettings = () => {
@@ -40,6 +41,7 @@ const loadSettings = () => {
     minWeight.value = data.minWeight !== undefined ? data.minWeight : '';
     minBodyFat.value = data.minBodyFat !== undefined ? data.minBodyFat : '';
     minCalorie.value = data.minCalorie !== undefined ? data.minCalorie : '';
+    targetCalorie.value = data.targetCalorie !== undefined ? data.targetCalorie : '';
   }
 };
 
@@ -54,7 +56,8 @@ const saveSettings = () => {
     notebooklmUrl: notebooklmUrl.value,
     minWeight: minWeight.value,
     minBodyFat: minBodyFat.value,
-    minCalorie: minCalorie.value
+    minCalorie: minCalorie.value,
+    targetCalorie: targetCalorie.value
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   
@@ -170,6 +173,15 @@ defineExpose({
               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Notebooklm URLを入力"
             />
+          </div>
+
+          <!-- 日毎の目標カロリー -->
+          <div class="mb-6 border-t pt-4">
+            <h3 class="font-bold text-gray-700 mb-3">目標設定 (任意)</h3>
+            <div>
+              <label class="block text-xs text-gray-600 mb-1">日毎の目標カロリー (kcal)</label>
+              <input v-model.number="targetCalorie" type="number" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例: 2000" />
+            </div>
           </div>
 
           <!-- グラフの最小値設定 -->
