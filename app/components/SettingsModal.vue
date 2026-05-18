@@ -26,6 +26,7 @@ const minWeight = ref<number | ''>('');
 const minBodyFat = ref<number | ''>('');
 const minCalorie = ref<number | ''>('');
 const targetCalorie = ref<number | ''>('');
+const userGoalText = ref('');
 
 // ローカルストレージから読み込み
 const loadSettings = () => {
@@ -42,6 +43,7 @@ const loadSettings = () => {
     minBodyFat.value = data.minBodyFat !== undefined ? data.minBodyFat : '';
     minCalorie.value = data.minCalorie !== undefined ? data.minCalorie : '';
     targetCalorie.value = data.targetCalorie !== undefined ? data.targetCalorie : '';
+    userGoalText.value = data.userGoalText || '';
   }
 };
 
@@ -57,7 +59,8 @@ const saveSettings = () => {
     minWeight: minWeight.value,
     minBodyFat: minBodyFat.value,
     minCalorie: minCalorie.value,
-    targetCalorie: targetCalorie.value
+    targetCalorie: targetCalorie.value,
+    userGoalText: userGoalText.value
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   
@@ -178,9 +181,18 @@ defineExpose({
           <!-- 日毎の目標カロリー -->
           <div class="mb-6 border-t pt-4">
             <h3 class="font-bold text-gray-700 mb-3">目標設定 (任意)</h3>
-            <div>
+            <div class="mb-4">
               <label class="block text-xs text-gray-600 mb-1">日毎の目標カロリー (kcal)</label>
               <input v-model.number="targetCalorie" type="number" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例: 2000" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600 mb-1">あなたの目標</label>
+              <textarea
+                v-model="userGoalText"
+                rows="5"
+                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="例: 体脂肪を落としつつ筋肉量を維持し、毎日の摂取カロリーを管理したい。"
+              ></textarea>
             </div>
           </div>
 

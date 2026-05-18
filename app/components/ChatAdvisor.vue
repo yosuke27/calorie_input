@@ -5,6 +5,7 @@ import { getGeminiGenerateContentUrl } from '~/utils/constants';
 const props = defineProps<{
   apiKey: string | null;
   isSettingsValid: boolean;
+  userGoalText?: string | null;
   dailyGroups?: any[];
   bodyCompGroups?: any[];
 }>();
@@ -101,6 +102,10 @@ const buildSystemInstruction = () => {
     });
   } else {
     contextText += `体重・体脂肪のデータはありません。\n`;
+  }
+
+  if (props.userGoalText && props.userGoalText.trim()) {
+    contextText += `\n【ユーザーの目標】\n${props.userGoalText.trim()}\n`;
   }
 
   return {

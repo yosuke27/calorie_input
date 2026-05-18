@@ -69,6 +69,14 @@ const spreadsheetId = computed(() => {
   return settings.spreadsheetId || null;
 });
 
+const userGoalText = computed(() => {
+  void apiKeyVersion.value;
+  const savedSettings = localStorage.getItem('calorie-app-settings');
+  if (!savedSettings) return null;
+  const settings = JSON.parse(savedSettings);
+  return settings.userGoalText || null;
+});
+
 const isSettingsValid = computed(() => !!apiKey.value && !!googleClientId.value && !!spreadsheetId.value);
 
 const databaseUrl = computed(() => {
@@ -208,6 +216,7 @@ const handleSubmitSuccess = () => {
         v-if="showChatAdvisor" 
         :api-key="apiKey" 
         :is-settings-valid="isSettingsValid" 
+        :user-goal-text="userGoalText"
         :daily-groups="historyListRef?.dailyGroups || []"
         :body-comp-groups="historyListRef?.bodyCompGroups || []"
         @close="showChatAdvisor = false" 
