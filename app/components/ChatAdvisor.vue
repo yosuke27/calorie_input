@@ -5,6 +5,8 @@ import { getGeminiGenerateContentUrl } from '~/utils/constants';
 const props = defineProps<{
   apiKey: string | null;
   isSettingsValid: boolean;
+  dailyGroups?: any[];
+  bodyCompGroups?: any[];
 }>();
 
 const emit = defineEmits<{
@@ -53,6 +55,59 @@ const scrollToBottom = async () => {
   }
 };
 
+const clearChat = () => {
+  if (confirm('チャット履歴をクリアしてもよろしいですか？')) {
+    messages.value = [
+      { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
+    ];
+    scrollToBottom();
+  }
+};
+
+const buildSystemInstruction = () => {
+  const now = new Date();
+  const pastDate = new Date();
+  pastDate.setMonth(now.getMonth() - 3); // 過去3ヶ月分
+
+  let contextText = `あなたはユーザーの食事管理と健康管理をサポートする親切なAIアドバイザーです。\n`;
+  contextText += `ユーザーの目標や現状のデータを元に、具体的で実践的なアドバイスを提供してください。\n`;
+  contextText += `現在の日時: ${now.toLocaleString('ja-JP')}\n\n`;
+
+  contextText += `【ユーザーの直近のデータ（最大過去3ヶ月分）】\n`;
+  
+  if (props.dailyGroups && props.dailyGroups.length > 0) {
+    contextText += `■ 食事の履歴 (日付, 総カロリー, たんぱく質, 脂質, 炭水化物):\n`;
+    const recentMeals = props.dailyGroups
+      .filter(d => new Date(d.dateKey) >= pastDate)
+      .slice(0, 30); // 多すぎるとトークンを消費するため、直近30日分程度に絞る
+    
+    recentMeals.forEach(day => {
+      contextText += `- ${day.dateKey}: ${day.totalCalorie}kcal (P: ${day.totalProtein.toFixed(1)}g, F: ${day.totalFat.toFixed(1)}g, C: ${day.totalCarb.toFixed(1)}g)\n`;
+    });
+  } else {
+    contextText += `食事の履歴データはありません。\n`;
+  }
+
+  contextText += `\n`;
+
+  if (props.bodyCompGroups && props.bodyCompGroups.length > 0) {
+    contextText += `■ 体重・体脂肪の推移 (日付, 体重, 体脂肪率):\n`;
+    const recentBodyComp = props.bodyCompGroups
+      .filter(d => new Date(d.dateKey) >= pastDate)
+      .slice(0, 30);
+      
+    recentBodyComp.forEach(day => {
+      contextText += `- ${day.dateKey}: ${day.weight}kg (体脂肪: ${day.bodyFat}%)\n`;
+    });
+  } else {
+    contextText += `体重・体脂肪のデータはありません。\n`;
+  }
+
+  return {
+    parts: [{ text: contextText }]
+  };
+};
+
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || isLoading.value) return;
 
@@ -80,6 +135,7 @@ const sendMessage = async () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        systemInstruction: buildSystemInstruction(),
         contents: apiContents,
         generationConfig: {
           temperature: 0.7,

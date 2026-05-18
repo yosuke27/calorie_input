@@ -318,7 +318,7 @@ const loadHistory = async () => {
 
     const tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
       callback: async (response: any) => {
         if (response.error !== undefined) {
           errorMessage.value = '認証に失敗しました: ' + response.error;
@@ -388,7 +388,8 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
             totalCalorie: 0,
             totalProtein: 0,
             totalFat: 0,
-            totalCarb: 0
+            totalCarb: 0,
+            items: []
           };
         }
 
@@ -401,6 +402,13 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
         acc[dateKey].totalProtein += p;
         acc[dateKey].totalFat += f;
         acc[dateKey].totalCarb += c;
+        
+        acc[dateKey].items.push({
+          dish_name: row[1],
+          calorie: cal,
+          p, f, c,
+          timeKey: row[0]
+        });
 
         return acc;
       }, {} as Record<string, any>);
@@ -513,8 +521,23 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
   }
 };
 
+const selectedGroup = ref<any | null>(null);
+const showDetailModal = ref(false);
+
+const openDetail = (group: any) => {
+  selectedGroup.value = group;
+  showDetailModal.value = true;
+};
+
+const closeDetail = () => {
+  showDetailModal.value = false;
+  setTimeout(() => { selectedGroup.value = null; }, 300); // 閉じきった後にクリア
+};
+
 defineExpose({
-  loadHistory
+  loadHistory,
+  dailyGroups,
+  bodyCompGroups
 });
 </script>
 
@@ -583,6 +606,9 @@ defineExpose({
       {{ errorMessage }}
     </div>
     
+    <div v-if="viewMode === 'today' && todayGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
+      本日の記録はありません
+    </div>
     <div v-if="viewMode === 'recent' && historyGroups.length === 0 && !isLoading" class="text-gray-500 text-center py-4 bg-gray-100 rounded-xl shrink-0">
       直近24時間の記録はありません
     </div>
@@ -591,9 +617,38 @@ defineExpose({
     </div>
 
     <div class="space-y-4 overflow-y-auto flex-1 min-h-0 pb-4 pr-2">
+      <!-- 本日の履歴 -->
+      <template v-if="viewMode === 'today'">
+        <div v-for="group in todayGroups" :key="group.timeKey" @click="openDetail(group)" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
+          <!-- ヘッダー部分 -->
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="font-bold text-gray-800">{{ formatTimeAgo(group.timeKey) }}</span>
+            <span class="text-xs text-gray-500">({{ formatDate(group.timeKey) }})</span>
+          </div>
+          
+          <!-- 料理名のリスト（シンプルにカンマ区切りなどで表示） -->
+          <div class="text-sm text-gray-600 mb-3 line-clamp-2">
+            {{ group.items.map((i: any) => i.dish_name).join('、') }}
+          </div>
+          
+          <!-- 合計カロリー -->
+          <div class="mb-2 text-gray-800">
+            <span class="text-sm">合計カロリー：</span>
+            <span class="font-bold text-xl text-orange-600">{{ group.totalCalorie }} <span class="text-sm">kcal</span></span>
+          </div>
+          
+          <!-- PFCバランス -->
+          <div class="flex gap-4 text-sm font-medium text-gray-600">
+            <div>F <span class="text-gray-800">{{ group.totalFat.toFixed(1) }}</span> g</div>
+            <div>P <span class="text-gray-800">{{ group.totalProtein.toFixed(1) }}</span> g</div>
+            <div>C <span class="text-gray-800">{{ group.totalCarb.toFixed(1) }}</span> g</div>
+          </div>
+        </div>
+      </template>
+
       <!-- 最近の履歴 -->
-      <template v-if="viewMode === 'recent'">
-        <div v-for="group in historyGroups" :key="group.timeKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
+      <template v-else-if="viewMode === 'recent'">
+        <div v-for="group in historyGroups" :key="group.timeKey" @click="openDetail(group)" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
           <!-- ヘッダー部分 -->
           <div class="flex justify-between items-baseline mb-2">
             <span class="font-bold text-gray-800">{{ formatTimeAgo(group.timeKey) }}</span>
@@ -622,7 +677,7 @@ defineExpose({
 
       <!-- 日毎の合計 -->
       <template v-else-if="viewMode === 'daily'">
-        <div v-for="day in paginatedDailyGroups" :key="day.dateKey" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0">
+        <div v-for="day in paginatedDailyGroups" :key="day.dateKey" @click="openDetail(day)" class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors">
           <!-- ヘッダー部分 -->
           <div class="flex justify-between items-baseline mb-2">
             <span class="font-bold text-gray-800">{{ day.dateKey }}</span>
@@ -663,5 +718,66 @@ defineExpose({
         </div>
       </template>
     </div>
+
+    <!-- 詳細スライドインモーダル -->
+    <Transition name="slide-up">
+      <div v-if="showDetailModal" class="fixed inset-0 bg-gray-50 z-50 flex flex-col overflow-hidden">
+        <!-- ヘッダー -->
+        <div class="flex justify-between items-center p-4 bg-white border-b border-gray-200 shrink-0 shadow-sm relative z-10">
+          <h2 class="text-xl font-bold text-gray-800">食事の詳細</h2>
+          <button @click="closeDetail" class="text-gray-500 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <!-- コンテンツ -->
+        <div class="flex-1 overflow-y-auto p-4" v-if="selectedGroup">
+          <div class="bg-white p-5 rounded-2xl shadow-sm mb-6 border border-gray-100">
+            <div class="text-sm text-gray-500 mb-1 font-medium">{{ selectedGroup.dateKey || formatDate(selectedGroup.timeKey) }}</div>
+            <div class="text-3xl font-bold text-orange-600 mb-4">{{ selectedGroup.totalCalorie }} <span class="text-lg">kcal</span></div>
+            
+            <div class="flex gap-6 text-sm font-medium text-gray-600 bg-orange-50 p-4 rounded-xl">
+              <div class="flex flex-col"><span class="text-orange-400 text-xs mb-1 font-bold">Fat</span><span class="text-lg text-gray-800">{{ selectedGroup.totalFat.toFixed(1) }}g</span></div>
+              <div class="flex flex-col"><span class="text-orange-400 text-xs mb-1 font-bold">Protein</span><span class="text-lg text-gray-800">{{ selectedGroup.totalProtein.toFixed(1) }}g</span></div>
+              <div class="flex flex-col"><span class="text-orange-400 text-xs mb-1 font-bold">Carb</span><span class="text-lg text-gray-800">{{ selectedGroup.totalCarb.toFixed(1) }}g</span></div>
+            </div>
+          </div>
+          
+          <h3 class="font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+            </svg>
+            内訳
+          </h3>
+          <div class="space-y-3 pb-8">
+            <div v-for="(item, idx) in selectedGroup.items" :key="idx" class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+              <div class="flex justify-between items-center mb-2">
+                <div class="font-bold text-gray-800 text-lg">{{ item.dish_name }}</div>
+                <div class="font-bold text-orange-600 text-lg">{{ item.calorie }} <span class="text-sm">kcal</span></div>
+              </div>
+              <div class="flex gap-4 text-xs font-medium text-gray-500 bg-gray-50 p-2 rounded-lg">
+                <div>F: <span class="text-gray-700">{{ item.f.toFixed(1) }}g</span></div>
+                <div>P: <span class="text-gray-700">{{ item.p.toFixed(1) }}g</span></div>
+                <div>C: <span class="text-gray-700">{{ item.c.toFixed(1) }}g</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+</style>

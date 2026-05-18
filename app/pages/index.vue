@@ -208,6 +208,8 @@ const handleSubmitSuccess = () => {
         v-if="showChatAdvisor" 
         :api-key="apiKey" 
         :is-settings-valid="isSettingsValid" 
+        :daily-groups="historyListRef?.dailyGroups || []"
+        :body-comp-groups="historyListRef?.bodyCompGroups || []"
         @close="showChatAdvisor = false" 
         @require-settings="handleRequireSettings"
       />
