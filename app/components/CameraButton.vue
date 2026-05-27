@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import imageCompression from 'browser-image-compression';
-import { getGeminiGenerateContentUrl } from '~/utils/constants';
+import { GeminiClient } from '~/utils/geminiClient';
 
 const props = defineProps<{
   apiKey: string | null;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, watch } from 'vue';
-import { getGeminiGenerateContentUrl } from '~/utils/constants';
+import { GeminiClient } from '~/utils/geminiClient';
 
 const props = defineProps<{
   apiKey: string | null;
@@ -134,29 +134,16 @@ const sendMessage = async () => {
       parts: [{ text: msg.content }]
     }));
 
-    const response = await fetch(getGeminiGenerateContentUrl(props.apiKey), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: buildSystemInstruction(),
-        contents: apiContents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
-      })
+    const client = new GeminiClient(props.apiKey);
+    const modelText = await client.generateContent({
+      systemInstruction: buildSystemInstruction(),
+      contents: apiContents,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'APIリクエストに失敗しました');
-    }
-
-    const result = await response.json();
-    const modelText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
     if (modelText) {
       messages.value.push({ role: 'model', content: modelText });
     } else {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { getGeminiGenerateContentUrl } from '~/utils/constants';
+import { GeminiClient } from '~/utils/geminiClient';
 
 const props = defineProps<{
   apiKey: string | null;
@@ -49,29 +49,21 @@ ${text}
   }
 ]`;
 
-  const response = await fetch(getGeminiGenerateContentUrl(apiKey), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 2048,
+  const client = new GeminiClient(apiKey);
+  const textResponse = await client.generateContent({
+    contents: [
+      {
+        parts: [
+          { text: prompt }
+        ]
       }
-    })
+    ],
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 2048,
+    }
   });
 
-  const result = await response.json();
-  
-  const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
   const jsonMatch = textResponse.match(/\[[\s\S]*\]/);
   
   if (jsonMatch) {
