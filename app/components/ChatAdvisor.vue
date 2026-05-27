@@ -25,7 +25,7 @@ interface Message {
 }
 
 const CHAT_STORAGE_KEY = 'calorie-app-chat-history';
-const BATCH_SIZE = 20; // 一度に読み込むメッセージ数
+const BATCH_SIZE = 5; // 一度に読み込むメッセージ数
 
 const allMessages = ref<Message[]>([
   { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
