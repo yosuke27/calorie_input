@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue';
+import { ref, nextTick, onMounted, watch, computed } from 'vue';
 import { GeminiClient } from '~/utils/geminiClient';
 
 const props = defineProps<{
@@ -25,10 +25,16 @@ interface Message {
 }
 
 const CHAT_STORAGE_KEY = 'calorie-app-chat-history';
+const BATCH_SIZE = 20; // 一度に読み込むメッセージ数
 
-const messages = ref<Message[]>([
+const allMessages = ref<Message[]>([
   { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
 ]);
+
+// 表示するメッセージ（一部のみ）
+const displayedMessages = ref<Message[]>([]);
+const displayStartIndex = ref(0);
+const hasMoreAbove = computed(() => displayStartIndex.value > 0);
 
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const attachedImage = ref<{ data: string; mimeType: string; name: string } | null>(null);
@@ -81,16 +87,20 @@ onMounted(() => {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        messages.value = parsed;
+        allMessages.value = parsed;
       }
     } catch (e) {
       console.error('Failed to parse chat history', e);
     }
   }
+  // 最後のBATCH_SIZE件のみ表示
+  const startIdx = Math.max(0, allMessages.value.length - BATCH_SIZE);
+  displayStartIndex.value = startIdx;
+  displayedMessages.value = allMessages.value.slice(startIdx);
   scrollToBottom();
 });
 
-watch(messages, (newVal) => {
+watch(allMessages, (newVal) => {
   localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(newVal));
 }, { deep: true });
 
@@ -105,11 +115,31 @@ const scrollToBottom = async () => {
   }
 };
 
+const handleScroll = async (event: Event) => {
+  const container = event.target as HTMLElement;
+  // 上端に近い場合、以前のメッセージを読み込む
+  if (container.scrollTop < 100 && hasMoreAbove.value) {
+    const newStartIdx = Math.max(0, displayStartIndex.value - BATCH_SIZE);
+    const scrollHeightBefore = container.scrollHeight;
+    
+    // 表示範囲を上に拡大
+    displayStartIndex.value = newStartIdx;
+    displayedMessages.value = allMessages.value.slice(newStartIdx);
+    
+    await nextTick();
+    // スクロール位置を調整（新規読み込み分の高さだけ下に移動）
+    const scrollHeightAfter = container.scrollHeight;
+    container.scrollTop += scrollHeightAfter - scrollHeightBefore;
+  }
+};
+
 const clearChat = () => {
   if (confirm('チャット履歴をクリアしてもよろしいですか？')) {
-    messages.value = [
+    allMessages.value = [
       { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
     ];
+    displayStartIndex.value = 0;
+    displayedMessages.value = allMessages.value.slice();
     scrollToBottom();
   }
 };
@@ -171,13 +201,16 @@ const sendMessage = async () => {
   }
 
   const userText = inputMessage.value.trim() || (attachedImage.value ? '画像を送信しました。' : '');
-  messages.value.push({
+  const userMessage: Message = {
     role: 'user',
     content: userText,
     imageData: attachedImage.value?.data,
     imageMimeType: attachedImage.value?.mimeType,
     imageName: attachedImage.value?.name
-  });
+  };
+  
+  allMessages.value.push(userMessage);
+  displayedMessages.value.push(userMessage);
 
   inputMessage.value = '';
   removeAttachedImage();
@@ -185,9 +218,8 @@ const sendMessage = async () => {
   await scrollToBottom();
 
   try {
-    const apiContents = messages.value.map(msg => {
-      const parts: any[] = [{ text: msg.content }];
-      if (msg.imageData && msg.imageMimeType) {
+    const apiContents = allMessages.value.map(msg => {
+      const parts: any[] = [{ text: msg.content }];      if (msg.imageData && msg.imageMimeType) {
         parts.push({
           inline_data: {
             mime_type: msg.imageMimeType,
@@ -212,13 +244,17 @@ const sendMessage = async () => {
     });
 
     if (modelText) {
-      messages.value.push({ role: 'model', content: modelText });
+      const modelMessage: Message = { role: 'model', content: modelText };
+      allMessages.value.push(modelMessage);
+      displayedMessages.value.push(modelMessage);
     } else {
       throw new Error('レスポンスが空でした');
     }
   } catch (error: any) {
     console.error(error);
-    messages.value.push({ role: 'model', content: `エラーが発生しました: ${error.message}` });
+    const errorMessage: Message = { role: 'model', content: `エラーが発生しました: ${error.message}` };
+    allMessages.value.push(errorMessage);
+    displayedMessages.value.push(errorMessage);
   } finally {
     isLoading.value = false;
     await scrollToBottom();
@@ -245,9 +281,9 @@ const sendMessage = async () => {
     </header>
 
     <!-- チャットエリア -->
-    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth" @scroll="handleScroll">
       <TransitionGroup name="msg" tag="div" class="space-y-6">
-        <div v-for="(msg, index) in messages" :key="index" class="flex w-full" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+        <div v-for="(msg, index) in displayedMessages" :key="index" class="flex w-full" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
           
           <!-- Model (AI) Icon -->
           <div v-if="msg.role === 'model'" class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mr-3 mt-1 shadow-sm">
