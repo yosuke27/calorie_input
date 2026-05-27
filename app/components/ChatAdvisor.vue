@@ -25,7 +25,7 @@ interface Message {
 }
 
 const CHAT_STORAGE_KEY = 'calorie-app-chat-history';
-const BATCH_SIZE = 5; // 一度に読み込むメッセージ数
+const BATCH_SIZE = 20; // 一度に読み込むメッセージ数
 
 const allMessages = ref<Message[]>([
   { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
@@ -111,7 +111,18 @@ const messagesContainer = ref<HTMLElement | null>(null);
 const scrollToBottom = async () => {
   await nextTick();
   if (messagesContainer.value) {
+    // まず即座にスクロール
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+
+    // TransitionGroupのアニメーション(0.3s)の完了に合わせて複数回スクロール位置を再調整する
+    const delays = [50, 150, 350];
+    delays.forEach(delay => {
+      setTimeout(() => {
+        if (messagesContainer.value) {
+          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+        }
+      }, delay);
+    });
   }
 };
 
@@ -281,7 +292,7 @@ const sendMessage = async () => {
     </header>
 
     <!-- チャットエリア -->
-    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth" @scroll="handleScroll">
+    <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-6" @scroll="handleScroll">
       <TransitionGroup name="msg" tag="div" class="space-y-6">
         <div v-for="(msg, index) in displayedMessages" :key="index" class="flex w-full" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
           
