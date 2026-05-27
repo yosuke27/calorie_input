@@ -217,6 +217,7 @@ const handleSubmitSuccess = () => {
         :api-key="apiKey" 
         :is-settings-valid="isSettingsValid" 
         :user-goal-text="userGoalText"
+        :initial-image-url="imagePreview"
         :daily-groups="historyListRef?.dailyGroups || []"
         :body-comp-groups="historyListRef?.bodyCompGroups || []"
         @close="showChatAdvisor = false" 

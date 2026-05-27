@@ -6,6 +6,7 @@ const props = defineProps<{
   apiKey: string | null;
   isSettingsValid: boolean;
   userGoalText?: string | null;
+  initialImageUrl?: string | null;
   dailyGroups?: any[];
   bodyCompGroups?: any[];
 }>();
@@ -18,6 +19,9 @@ const emit = defineEmits<{
 interface Message {
   role: 'user' | 'model';
   content: string;
+  imageUrl?: string;
+  imageMimeType?: string;
+  imageName?: string;
 }
 
 const CHAT_STORAGE_KEY = 'calorie-app-chat-history';
@@ -25,6 +29,41 @@ const CHAT_STORAGE_KEY = 'calorie-app-chat-history';
 const messages = ref<Message[]>([
   { role: 'model', content: 'こんにちは！日々の食事や体重に関する相談に乗ります。何か気になることはありますか？' }
 ]);
+
+const imageInputRef = ref<HTMLInputElement | null>(null);
+const attachedImage = ref<{ url: string; mimeType: string; name: string } | null>(
+  props.initialImageUrl ? { url: props.initialImageUrl, mimeType: 'image/jpeg', name: 'attached-image' } : null
+);
+
+const openImagePicker = () => {
+  imageInputRef.value?.click();
+};
+
+const removeAttachedImage = () => {
+  if (attachedImage.value?.url.startsWith('blob:')) {
+    URL.revokeObjectURL(attachedImage.value.url);
+  }
+  attachedImage.value = null;
+  if (imageInputRef.value) {
+    imageInputRef.value.value = '';
+  }
+};
+
+const handleImageChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  if (attachedImage.value?.url.startsWith('blob:')) {
+    URL.revokeObjectURL(attachedImage.value.url);
+  }
+
+  attachedImage.value = {
+    url: URL.createObjectURL(file),
+    mimeType: file.type || 'image/jpeg',
+    name: file.name || 'attached-image'
+  };
+};
 
 onMounted(() => {
   const saved = localStorage.getItem(CHAT_STORAGE_KEY);
@@ -114,25 +153,43 @@ const buildSystemInstruction = () => {
 };
 
 const sendMessage = async () => {
-  if (!inputMessage.value.trim() || isLoading.value) return;
+  if ((!inputMessage.value.trim() && !attachedImage.value) || isLoading.value) return;
 
   if (!props.isSettingsValid || !props.apiKey) {
     emit('require-settings');
     return;
   }
 
-  const userText = inputMessage.value.trim();
-  messages.value.push({ role: 'user', content: userText });
+  const userText = inputMessage.value.trim() || (attachedImage.value ? '画像を送信しました。' : '');
+  messages.value.push({
+    role: 'user',
+    content: userText,
+    imageUrl: attachedImage.value?.url,
+    imageMimeType: attachedImage.value?.mimeType,
+    imageName: attachedImage.value?.name
+  });
+
   inputMessage.value = '';
+  removeAttachedImage();
   isLoading.value = true;
   await scrollToBottom();
 
   try {
-    // API用のメッセージ履歴を構築
-    const apiContents = messages.value.map(msg => ({
-      role: msg.role,
-      parts: [{ text: msg.content }]
-    }));
+    const apiContents = messages.value.map(msg => {
+      const parts: any[] = [{ text: msg.content }];
+      if (msg.imageUrl) {
+        parts.push({
+          image: {
+            imageUri: msg.imageUrl,
+            mimeType: msg.imageMimeType || 'image/jpeg'
+          }
+        });
+      }
+      return {
+        role: msg.role,
+        parts
+      };
+    });
 
     const client = new GeminiClient(props.apiKey);
     const modelText = await client.generateContent({
@@ -194,7 +251,13 @@ const sendMessage = async () => {
               ? 'bg-blue-500 text-white rounded-2xl rounded-tr-sm' 
               : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100'"
           >
-            {{ msg.content }}
+            <div>{{ msg.content }}</div>
+            <img
+              v-if="msg.imageUrl"
+              :src="msg.imageUrl"
+              alt="添付画像"
+              class="mt-3 w-full rounded-xl object-contain border border-gray-200"
+            />
           </div>
         </div>
 
@@ -217,26 +280,47 @@ const sendMessage = async () => {
 
     <!-- 入力エリア -->
     <div class="bg-white px-4 py-3 shrink-0 border-t border-gray-200 safe-area-bottom">
-      <form @submit.prevent="sendMessage" class="flex items-end gap-2 max-w-4xl mx-auto">
-        <div class="flex-1 bg-gray-100 rounded-3xl flex items-end relative border border-gray-200 overflow-hidden focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-          <textarea 
-            v-model="inputMessage" 
-            @keydown.enter.exact.prevent="sendMessage"
-            rows="1"
-            class="flex-1 bg-transparent resize-none border-none outline-none py-3 px-4 max-h-32 text-gray-800 text-sm"
-            placeholder="メッセージを入力..."
-          ></textarea>
+      <form @submit.prevent="sendMessage" class="max-w-4xl mx-auto">
+        <div class="flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            @click="openImagePicker"
+            class="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-2 text-sm text-gray-700 hover:bg-gray-200 transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm3 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm7 6H6a1 1 0 110-2h8a1 1 0 110 2z" />
+            </svg>
+            画像添付
+          </button>
+          <span v-if="attachedImage" class="text-sm text-gray-500">{{ attachedImage.name }} を添付中</span>
+          <button v-if="attachedImage" type="button" @click="removeAttachedImage" class="text-sm text-red-500 hover:text-red-700">削除</button>
+          <input ref="imageInputRef" type="file" accept="image/*" class="hidden" @change="handleImageChange" />
         </div>
-        <button 
-          type="submit" 
-          :disabled="!inputMessage.trim() || isLoading"
-          class="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
-          :class="inputMessage.trim() && !isLoading ? 'bg-blue-500 text-white shadow-md hover:bg-blue-600 active:scale-95' : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-        </button>
+
+        <div class="flex items-end gap-2">
+          <div class="flex-1 bg-gray-100 rounded-3xl flex flex-col border border-gray-200 overflow-hidden focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+            <textarea 
+              v-model="inputMessage" 
+              @keydown.enter.exact.prevent="sendMessage"
+              rows="1"
+              class="flex-1 bg-transparent resize-none border-none outline-none py-3 px-4 max-h-32 text-gray-800 text-sm"
+              placeholder="メッセージを入力..."
+            ></textarea>
+            <div v-if="attachedImage" class="p-3 border-t border-gray-200 bg-white">
+              <img :src="attachedImage.url" alt="添付画像のプレビュー" class="w-full max-h-40 rounded-xl object-contain" />
+            </div>
+          </div>
+          <button 
+            type="submit" 
+            :disabled="(!inputMessage.trim() && !attachedImage) || isLoading"
+            class="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
+            :class="(!inputMessage.trim() && !attachedImage) || isLoading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-500 text-white shadow-md hover:bg-blue-600 active:scale-95'"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+            </svg>
+          </button>
+        </div>
       </form>
     </div>
   </div>
