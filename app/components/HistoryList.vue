@@ -18,6 +18,9 @@ const dailyGroups = ref<any[]>([]);
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const chartPeriod = ref<'1w' | '1m' | '3m' | '1y'>('1w');
+const showWeightInChart = ref(true);
+const showFatInChart = ref(true);
+const showCalorieInChart = ref(true);
 
 const targetCalorie = ref<number | undefined>(undefined);
 const chartMinWeight = ref<number | undefined>(undefined);
@@ -103,79 +106,95 @@ const bodyCompChartData = computed(() => {
     bodyFatData.push(fatMap.has(date) ? fatMap.get(date) : null);
   });
 
+  const datasets = [];
+  if (showWeightInChart.value) {
+    datasets.push({
+      label: '体重 (kg)',
+      backgroundColor: 'rgba(59, 130, 246, 0.5)',
+      borderColor: '#3b82f6',
+      data: weightData,
+      yAxisID: 'y-weight',
+      tension: 0.1,
+      pointRadius: 4,
+      spanGaps: true
+    });
+  }
+  if (showFatInChart.value) {
+    datasets.push({
+      label: '体脂肪率 (%)',
+      backgroundColor: 'rgba(16, 185, 129, 0.5)',
+      borderColor: '#10b981',
+      data: bodyFatData,
+      yAxisID: 'y-fat',
+      tension: 0.1,
+      pointRadius: 4,
+      spanGaps: true
+    });
+  }
+  if (showCalorieInChart.value) {
+    datasets.push({
+      label: '摂取カロリー (kcal)',
+      backgroundColor: 'rgba(234, 88, 12, 0.5)',
+      borderColor: '#ea580c',
+      data: calorieData,
+      yAxisID: 'y-calorie',
+      tension: 0.1,
+      pointRadius: 4,
+      spanGaps: true
+    });
+  }
+
   return {
     labels: sortedDates.map(d => {
       const parts = d.split('/');
       return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d;
     }),
-    datasets: [
-      {
-        label: '体重 (kg)',
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        borderColor: '#3b82f6',
-        data: weightData,
-        yAxisID: 'y-weight',
-        tension: 0.1,
-        pointRadius: 4,
-        spanGaps: true
-      },
-      {
-        label: '体脂肪率 (%)',
-        backgroundColor: 'rgba(16, 185, 129, 0.5)',
-        borderColor: '#10b981',
-        data: bodyFatData,
-        yAxisID: 'y-fat',
-        tension: 0.1,
-        pointRadius: 4,
-        spanGaps: true
-      },
-      {
-        label: '摂取カロリー (kcal)',
-        backgroundColor: 'rgba(234, 88, 12, 0.5)',
-        borderColor: '#ea580c',
-        data: calorieData,
-        yAxisID: 'y-calorie',
-        tension: 0.1,
-        pointRadius: 4,
-        spanGaps: true
-      }
-    ]
+    datasets
   };
 });
 
-const bodyCompChartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: true,
-      position: 'bottom' as const
-    }
-  },
-  scales: {
-    'y-weight': {
+const bodyCompChartOptions = computed(() => {
+  const scales: any = {};
+  if (showWeightInChart.value) {
+    scales['y-weight'] = {
       type: 'linear' as const,
       position: 'left' as const,
       title: { display: true, text: 'kg' },
       min: chartMinWeight.value
-    },
-    'y-fat': {
+    };
+  }
+  if (showFatInChart.value) {
+    scales['y-fat'] = {
       type: 'linear' as const,
       position: 'left' as const,
       title: { display: true, text: '%' },
       grid: { drawOnChartArea: false },
       min: chartMinBodyFat.value
-    },
-    'y-calorie': {
+    };
+  }
+  if (showCalorieInChart.value) {
+    scales['y-calorie'] = {
       type: 'linear' as const,
       position: 'right' as const,
       beginAtZero: chartMinCalorie.value === undefined,
       title: { display: true, text: 'kcal' },
       grid: { drawOnChartArea: false },
       min: chartMinCalorie.value
-    }
+    };
   }
-}));
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom' as const
+      }
+    },
+    scales
+  };
+});
 
 const chartOptions = {
   responsive: true,
@@ -542,7 +561,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="w-full max-w-xs mt-8 flex flex-col flex-1 min-h-0">
+  <div class="w-full max-w-md mt-8 flex flex-col flex-1 min-h-0">
     <div class="flex justify-between items-center mb-4 shrink-0">
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative flex items-center">
@@ -704,17 +723,26 @@ defineExpose({
           <div v-if="chartData.labels.length === 0" class="text-gray-500 text-center">
             該当期間のデータがありません
           </div>
-          <Line v-else :data="chartData" :options="chartOptions" class="w-full h-full" />
+          <div v-else class="relative w-full h-[250px]">
+            <Line :data="chartData" :options="chartOptions" />
+          </div>
         </div>
       </template>
 
       <!-- 体組織グラフ -->
       <template v-else-if="viewMode === 'bodyComp'">
         <div class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 min-h-[300px] flex flex-col justify-center">
+          <div class="flex items-center justify-center gap-4 mb-4 text-sm text-gray-700">
+             <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="showWeightInChart" class="w-4 h-4 accent-blue-500"> 体重</label>
+             <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="showFatInChart" class="w-4 h-4 accent-green-500"> 体脂肪率</label>
+             <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="showCalorieInChart" class="w-4 h-4 accent-orange-500"> カロリー</label>
+          </div>
           <div v-if="bodyCompChartData.labels.length === 0" class="text-gray-500 text-center text-sm">
             該当期間のデータがありません。設定から体組織DBのシートIDを確認してください。
           </div>
-          <Line v-else :data="bodyCompChartData" :options="bodyCompChartOptions" class="w-full h-full" />
+          <div v-else class="relative w-full h-[250px]">
+            <Line :data="bodyCompChartData" :options="bodyCompChartOptions" />
+          </div>
         </div>
       </template>
     </div>

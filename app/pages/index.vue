@@ -153,7 +153,7 @@ const handleSubmitSuccess = () => {
     </h1>
 
     <!-- 入力アクション群 -->
-    <div class="w-full max-w-xs flex justify-between items-center">
+    <div class="w-full max-w-md flex justify-between items-center">
       <!-- カメラボタンコンポーネント -->
       <CameraButton 
         :api-key="apiKey"
@@ -180,7 +180,7 @@ const handleSubmitSuccess = () => {
     </div>
 
     <!-- 外部リンク/機能ボタン群 -->
-    <div v-if="databaseUrl || isSettingsValid || notebooklmUrl" class="mt-4 w-full max-w-xs flex gap-3">
+    <div v-if="databaseUrl || isSettingsValid || notebooklmUrl" class="mt-4 w-full max-w-md flex gap-3">
       <a v-if="databaseUrl" :href="databaseUrl" target="_blank" rel="noopener noreferrer" class="flex-1 bg-green-500 text-white text-center py-3 rounded-xl font-bold shadow-md hover:bg-green-600 transition-colors">
         データベース
       </a>
@@ -198,7 +198,7 @@ const handleSubmitSuccess = () => {
     <HistoryList ref="historyListRef" />
 
     <!-- 栄養分析結果を再表示するボタン -->
-    <div v-if="hasResults" class="mt-8 w-full max-w-xs shrink-0">
+    <div v-if="hasResults" class="mt-8 w-full max-w-md shrink-0">
       <button @click="resultModalRef?.open(rawResults, imagePreview || '')" class="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold shadow hover:bg-blue-200 transition-colors">
         分析結果を確認する
       </button>
