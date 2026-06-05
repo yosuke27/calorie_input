@@ -27,47 +27,6 @@ const chartMinWeight = ref<number | undefined>(undefined);
 const chartMinBodyFat = ref<number | undefined>(undefined);
 const chartMinCalorie = ref<number | undefined>(undefined);
 
-const chartData = computed(() => {
-  const now = new Date();
-  const pastDate = new Date();
-  
-  if (chartPeriod.value === '1w') {
-    pastDate.setDate(now.getDate() - 7);
-  } else if (chartPeriod.value === '1m') {
-    pastDate.setMonth(now.getMonth() - 1);
-  } else if (chartPeriod.value === '3m') {
-    pastDate.setMonth(now.getMonth() - 3);
-  } else if (chartPeriod.value === '1y') {
-    pastDate.setFullYear(now.getFullYear() - 1);
-  }
-
-  // dailyGroupsは新しい順(降順)になっているので、指定期間でフィルタ後、グラフ用に昇順(古い順)に反転
-  const filtered = dailyGroups.value.filter(day => {
-    return new Date(day.dateKey) >= pastDate;
-  });
-
-  const reversed = [...filtered].reverse();
-
-  return {
-    labels: reversed.map(d => {
-      // 2024/05/15 -> 05/15 のように年を省略
-      const parts = d.dateKey.split('/');
-      return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d.dateKey;
-    }),
-    datasets: [
-      {
-        label: '摂取カロリー (kcal)',
-        backgroundColor: '#ea580c',
-        borderColor: '#ea580c',
-        data: reversed.map(d => d.totalCalorie),
-        tension: 0.1,
-        pointRadius: 4,
-        pointHoverRadius: 6
-      }
-    ]
-  };
-});
-
 const bodyCompChartData = computed(() => {
   const now = new Date();
   const pastDate = new Date();
@@ -154,22 +113,26 @@ const bodyCompChartData = computed(() => {
 });
 
 const bodyCompChartOptions = computed(() => {
-  const scales: any = {};
+  const scales: any = {
+    x: {
+      ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 }
+    }
+  };
   if (showWeightInChart.value) {
     scales['y-weight'] = {
       type: 'linear' as const,
       position: 'left' as const,
-      title: { display: true, text: 'kg' },
-      min: chartMinWeight.value
+      min: chartMinWeight.value,
+      ticks: { color: '#3b82f6', font: { size: 10 }, padding: 2, maxTicksLimit: 6 }
     };
   }
   if (showFatInChart.value) {
     scales['y-fat'] = {
       type: 'linear' as const,
       position: 'left' as const,
-      title: { display: true, text: '%' },
       grid: { drawOnChartArea: false },
-      min: chartMinBodyFat.value
+      min: chartMinBodyFat.value,
+      ticks: { color: '#10b981', font: { size: 10 }, padding: 2, maxTicksLimit: 6 }
     };
   }
   if (showCalorieInChart.value) {
@@ -177,19 +140,23 @@ const bodyCompChartOptions = computed(() => {
       type: 'linear' as const,
       position: 'right' as const,
       beginAtZero: chartMinCalorie.value === undefined,
-      title: { display: true, text: 'kcal' },
       grid: { drawOnChartArea: false },
-      min: chartMinCalorie.value
+      min: chartMinCalorie.value,
+      ticks: { color: '#ea580c', font: { size: 10 }, padding: 2, maxTicksLimit: 6 }
     };
   }
 
   return {
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: 0
+    },
     plugins: {
       legend: {
         display: true,
-        position: 'bottom' as const
+        position: 'bottom' as const,
+        labels: { boxWidth: 12, padding: 10, font: { size: 11 } }
       }
     },
     scales
@@ -396,9 +363,11 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
         const dateObj = new Date(row[0]);
         if (isNaN(dateObj.getTime())) return acc;
         
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
+        // 3時を1日の区切りとするため、3時間マイナスした日付を基準にする
+        const logicalDate = new Date(dateObj.getTime() - 3 * 60 * 60 * 1000);
+        const year = logicalDate.getFullYear();
+        const month = String(logicalDate.getMonth() + 1).padStart(2, '0');
+        const day = String(logicalDate.getDate()).padStart(2, '0');
         const dateKey = `${year}/${month}/${day}`;
 
         if (!acc[dateKey]) {
@@ -507,9 +476,11 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
             const dateObj = new Date(row[0]);
             if (isNaN(dateObj.getTime())) return acc;
             
-            const year = dateObj.getFullYear();
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const day = String(dateObj.getDate()).padStart(2, '0');
+            // 3時を1日の区切りとするため、3時間マイナスした日付を基準にする
+            const logicalDate = new Date(dateObj.getTime() - 3 * 60 * 60 * 1000);
+            const year = logicalDate.getFullYear();
+            const month = String(logicalDate.getMonth() + 1).padStart(2, '0');
+            const day = String(logicalDate.getDate()).padStart(2, '0');
             const dateKey = `${year}/${month}/${day}`;
 
             const weight = parseFloat(row[1]) || 0;
@@ -569,8 +540,7 @@ defineExpose({
             <option value="today">本日の食事</option>
             <option value="recent">直近24時間の食事</option>
             <option value="daily">日毎の合計カロリー</option>
-            <option value="chart">グラフ</option>
-            <option value="bodyComp">体組織グラフ</option>
+            <option value="bodyComp">グラフ</option>
           </select>
           <div class="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-gray-800">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mt-1" viewBox="0 0 20 20" fill="currentColor">
@@ -593,8 +563,8 @@ defineExpose({
           <button @click="nextPage" :disabled="currentPage === totalPages" class="flex items-center justify-center w-6 h-6 hover:bg-gray-200 rounded-full disabled:opacity-30 disabled:hover:bg-transparent transition-colors">▶</button>
         </div>
 
-        <!-- グラフ期間選択（chart, bodyCompモード時） -->
-        <div v-if="viewMode === 'chart' || viewMode === 'bodyComp'" class="flex items-center text-gray-600">
+        <!-- グラフ期間選択（bodyCompモード時） -->
+        <div v-if="viewMode === 'bodyComp'" class="flex items-center text-gray-600">
           <div class="relative flex items-center">
             <select v-model="chartPeriod" class="bg-gray-100 text-sm font-medium text-gray-700 rounded-lg pl-3 pr-8 py-1.5 outline-none cursor-pointer appearance-none border border-gray-200">
               <option value="1w">1週間</option>
@@ -718,18 +688,6 @@ defineExpose({
       </template>
 
       <!-- グラフ -->
-      <template v-else-if="viewMode === 'chart'">
-        <div class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 min-h-[300px] flex flex-col justify-center">
-          <div v-if="chartData.labels.length === 0" class="text-gray-500 text-center">
-            該当期間のデータがありません
-          </div>
-          <div v-else class="relative w-full h-[250px]">
-            <Line :data="chartData" :options="chartOptions" />
-          </div>
-        </div>
-      </template>
-
-      <!-- 体組織グラフ -->
       <template v-else-if="viewMode === 'bodyComp'">
         <div class="bg-white p-4 rounded-2xl shadow border border-gray-100 shrink-0 min-h-[300px] flex flex-col justify-center">
           <div class="flex items-center justify-center gap-4 mb-4 text-sm text-gray-700">
