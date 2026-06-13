@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { saveProfileName, getProfileName } from '~/utils/db';
 
 // ローカルストレージのキー
 const STORAGE_KEY = 'calorie-app-settings';
@@ -16,6 +17,7 @@ const toastMessage = ref('');
 // 設定モーダル
 const showSettings = ref(false);
 const showClientIdHelp = ref(false);
+const profileName = ref('');
 const geminiApiKey = ref('');
 const googleClientId = ref('');
 const spreadsheetId = ref('');
@@ -29,7 +31,7 @@ const targetCalorie = ref<number | ''>('');
 const userGoalText = ref('');
 
 // ローカルストレージから読み込み
-const loadSettings = () => {
+const loadSettings = async () => {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     const data = JSON.parse(saved);
@@ -45,10 +47,20 @@ const loadSettings = () => {
     targetCalorie.value = data.targetCalorie !== undefined ? data.targetCalorie : '';
     userGoalText.value = data.userGoalText || '';
   }
+  
+  // SQLiteからプロフィール名を読み込み
+  try {
+    const name = await getProfileName();
+    if (name) {
+      profileName.value = name;
+    }
+  } catch (e) {
+    console.error('Failed to load profile name from DB:', e);
+  }
 };
 
 // ローカルストレージに保存
-const saveSettings = () => {
+const saveSettings = async () => {
   const data = {
     geminiApiKey: geminiApiKey.value,
     googleClientId: googleClientId.value,
@@ -64,6 +76,15 @@ const saveSettings = () => {
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   
+  // SQLiteにプロフィール名を保存
+  try {
+    if (profileName.value) {
+      await saveProfileName(profileName.value);
+    }
+  } catch (e) {
+    console.error('Failed to save profile name to DB:', e);
+  }
+  
   // 親に通知
   emit('settings-saved');
   
@@ -77,8 +98,8 @@ const saveSettings = () => {
   closeSettings();
 };
 
-const openSettings = () => {
-  loadSettings();
+const openSettings = async () => {
+  await loadSettings();
   showSettings.value = true;
 };
 
@@ -103,6 +124,17 @@ defineExpose({
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold">設定</h2>
             <button @click="closeSettings" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+          </div>
+
+          <!-- 項目0: プロフィール名 (SQLite保存) -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">ユーザー名</label>
+            <input 
+              v-model="profileName"
+              type="text" 
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="名前を入力"
+            />
           </div>
 
           <!-- 項目1: Gemini APIキー -->

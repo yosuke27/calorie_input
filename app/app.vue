@@ -1,3 +1,17 @@
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { initDb } from '~/utils/db';
+
+onMounted(async () => {
+  try {
+    await initDb();
+    console.log('Database initialized successfully on app mount.');
+  } catch (e) {
+    console.error('Failed to initialize database on app mount:', e);
+  }
+});
+</script>
+
 <template>
   <div class="h-full">
     <VitePwaManifest />

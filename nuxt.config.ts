@@ -23,8 +23,21 @@ export default defineNuxtConfig({
       ]
     }
   },
+  vite: {
+    optimizeDeps: {
+      exclude: ['@sqlite.org/sqlite-wasm']
+    }
+  },
   nitro: {
-    preset: 'github-pages'
+    preset: 'github-pages',
+    routeRules: {
+      '/**': {
+        headers: {
+          'Cross-Origin-Embedder-Policy': 'require-corp',
+          'Cross-Origin-Opener-Policy': 'same-origin'
+        }
+      }
+    }
   },
   pwa: {
     registerType: 'autoUpdate',
