@@ -27,6 +27,99 @@ const chartMinWeight = ref<number | undefined>(undefined);
 const chartMinBodyFat = ref<number | undefined>(undefined);
 const chartMinCalorie = ref<number | undefined>(undefined);
 
+const currentSheetId = ref('');
+const isEditing = ref(false);
+const editingItem = ref<any>(null);
+const isSaving = ref(false);
+
+const startEdit = (item: any) => {
+  editingItem.value = {
+    ...item,
+    dateString: item.timeKey,
+  };
+  isEditing.value = true;
+};
+
+const cancelEdit = () => {
+  editingItem.value = null;
+  isEditing.value = false;
+};
+
+const saveEdit = async () => {
+  if (!currentSheetId.value || !editingItem.value) return;
+  
+  isSaving.value = true;
+  try {
+    let token = getCachedToken();
+    if (!token) throw new Error('Googleの認証トークンが見つかりません。再読み込みして再認証してください。');
+
+    const row = [...editingItem.value.originalRow];
+    while(row.length < 8) row.push('');
+
+    row[0] = editingItem.value.dateString;
+    row[1] = editingItem.value.dish_name;
+    row[3] = String(editingItem.value.calorie);
+    row[4] = String(editingItem.value.p);
+    row[5] = String(editingItem.value.f);
+    row[6] = String(editingItem.value.c);
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${currentSheetId.value}/values/A${editingItem.value.rowIndex}:H${editingItem.value.rowIndex}?valueInputOption=USER_ENTERED`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [row] })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error?.message || '更新に失敗しました');
+    }
+
+    cancelEdit();
+    closeDetail();
+    await loadHistory();
+  } catch (e: any) {
+    alert('エラー: ' + e.message);
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const deleteItem = async (item: any) => {
+  if (!confirm('この記録を削除しますか？')) return;
+  if (!currentSheetId.value) return;
+
+  isSaving.value = true;
+  try {
+    let token = getCachedToken();
+    if (!token) throw new Error('Googleの認証トークンが見つかりません。再読み込みして再認証してください。');
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${currentSheetId.value}/values/A${item.rowIndex}:H${item.rowIndex}:clear`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error?.message || '削除に失敗しました');
+    }
+
+    closeDetail();
+    cancelEdit();
+    await loadHistory();
+  } catch (e: any) {
+    alert('エラー: ' + e.message);
+  } finally {
+    isSaving.value = false;
+  }
+};
+
 const bodyCompChartData = computed(() => {
   const now = new Date();
   const pastDate = new Date();
@@ -283,6 +376,8 @@ const loadHistory = async () => {
   const sheetId = extractSpreadsheetId(sheetIdRaw);
   const bodyCompSheetId = extractSpreadsheetId(bodyCompositionSheetIdRaw);
 
+  currentSheetId.value = sheetId;
+
   if (!clientId || !sheetId) {
     errorMessage.value = '設定からGoogle OAuthクライアントIDとスプレッドシートIDを入力してください。';
     return;
@@ -357,8 +452,10 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
         todayStart.setDate(todayStart.getDate() - 1);
       }
 
+      const indexedRows = rows.map((row: any[], index: number) => ({ row, index: index + 1 }));
+
       // 日毎の集計
-      const dailyGrouped = rows.reduce((acc: Record<string, any>, row: any[]) => {
+      const dailyGrouped = indexedRows.reduce((acc: Record<string, any>, { row, index }: { row: any[], index: number }) => {
         if (!row[0]) return acc;
         const dateObj = new Date(row[0]);
         if (isNaN(dateObj.getTime())) return acc;
@@ -395,7 +492,9 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
           dish_name: row[1],
           calorie: cal,
           p, f, c,
-          timeKey: row[0]
+          timeKey: row[0],
+          rowIndex: index,
+          originalRow: row
         });
 
         return acc;
@@ -405,14 +504,14 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
         return new Date(b.dateKey).getTime() - new Date(a.dateKey).getTime();
       });
       
-      const recentRows = rows.filter((row: any) => {
+      const recentRows = indexedRows.filter(({ row }: { row: any[] }) => {
         if (!row[0]) return false;
         const rowDate = new Date(row[0]);
         // 直近24時間以内のデータのみをフィルタリング
         return rowDate >= oneDayAgo && rowDate <= now;
       });
 
-      const todayRows = rows.filter((row: any) => {
+      const todayRows = indexedRows.filter(({ row }: { row: any[] }) => {
         if (!row[0]) return false;
         const rowDate = new Date(row[0]);
         // 本日のデータ（3時起点）のみをフィルタリング
@@ -420,7 +519,7 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
       });
 
       const groupRows = (targetRows: any[]) => {
-        const grouped = targetRows.reduce((acc: Record<string, any>, row: any[]) => {
+        const grouped = targetRows.reduce((acc: Record<string, any>, { row, index }: { row: any[], index: number }) => {
           const timeKey = row[0];
           if (!acc[timeKey]) {
             acc[timeKey] = {
@@ -441,7 +540,10 @@ const fetchSheetData = async (accessToken: string, spreadsheetId: string, bodyCo
           acc[timeKey].items.push({
             dish_name: row[1],
             calorie: cal,
-            p, f, c
+            p, f, c,
+            timeKey: row[0],
+            rowIndex: index,
+            originalRow: row
           });
           
           acc[timeKey].totalCalorie += cal;
@@ -741,7 +843,14 @@ defineExpose({
             <div v-for="(item, idx) in selectedGroup.items" :key="idx" class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
               <div class="flex justify-between items-center mb-2">
                 <div class="font-bold text-gray-800 text-lg">{{ item.dish_name }}</div>
-                <div class="font-bold text-orange-600 text-lg">{{ item.calorie }} <span class="text-sm">kcal</span></div>
+                <div class="flex items-center gap-3">
+                  <div class="font-bold text-orange-600 text-lg">{{ item.calorie }} <span class="text-sm">kcal</span></div>
+                  <button @click.stop="startEdit(item)" class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 w-8 h-8 flex justify-center items-center rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="flex gap-4 text-xs font-medium text-gray-500 bg-gray-50 p-2 rounded-lg">
                 <div>F: <span class="text-gray-700">{{ item.f.toFixed(1) }}g</span></div>
@@ -753,6 +862,63 @@ defineExpose({
         </div>
       </div>
     </Transition>
+
+    <!-- 編集モーダル -->
+    <div v-if="isEditing" class="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+        <h3 class="text-xl font-bold text-gray-800 mb-4">記録の編集</h3>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">日時</label>
+            <input v-model="editingItem.dateString" type="text" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">料理名</label>
+            <input v-model="editingItem.dish_name" type="text" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">カロリー (kcal)</label>
+            <input v-model.number="editingItem.calorie" type="number" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Fat (g)</label>
+              <input v-model.number="editingItem.f" type="number" step="0.1" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Protein (g)</label>
+              <input v-model.number="editingItem.p" type="number" step="0.1" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Carb (g)</label>
+              <input v-model.number="editingItem.c" type="number" step="0.1" class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8 flex justify-between items-center">
+          <button @click="deleteItem(editingItem)" :disabled="isSaving" class="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg font-bold text-sm transition-colors disabled:opacity-50">
+            削除
+          </button>
+          <div class="flex gap-2">
+            <button @click="cancelEdit" :disabled="isSaving" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors disabled:opacity-50">
+              キャンセル
+            </button>
+            <button @click="saveEdit" :disabled="isSaving" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50">
+              <svg v-if="isSaving" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ isSaving ? '保存中...' : '保存' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
